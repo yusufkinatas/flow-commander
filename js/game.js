@@ -23,6 +23,7 @@ const ASSETS = Object.freeze({
   soldier: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0098.png",
   mage: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0084.png",
   builder: "./assets/vendor/kenney-tiny-farm/Tiles/tile_0108.png",
+  healer: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0087.png",
   goblin: "./assets/vendor/tiny-creatures/tiny-creatures/Tiles/tile_0011.png",
   orc: "./assets/vendor/tiny-creatures/tiny-creatures/Tiles/tile_0012.png",
   ogre: "./assets/vendor/tiny-creatures/tiny-creatures/Tiles/tile_0015.png",
@@ -65,9 +66,11 @@ const dom = {
   tiredCount: document.querySelector("#tiredCount"),
   mageCount: document.querySelector("#mageCount"),
   builderCount: document.querySelector("#builderCount"),
+  healerCount: document.querySelector("#healerCount"),
   soldierCard: document.querySelector("#soldierCard"),
   mageCard: document.querySelector("#mageCard"),
   builderCard: document.querySelector("#builderCard"),
+  healerCard: document.querySelector("#healerCard"),
   sealMeter: document.querySelector("#sealMeter"),
   sunSeal: document.querySelector("#sunSeal"),
   moonSeal: document.querySelector("#moonSeal"),
@@ -167,7 +170,7 @@ class Soundboard {
   }
 
   setTheme(theme) {
-    this.musicTheme = theme % 3;
+    this.musicTheme = theme % 4;
   }
 
   musicTone(frequency, start, duration, volume = 0.05, type = "triangle") {
@@ -196,6 +199,7 @@ class Soundboard {
       { notes: [262, 330, 392, 330, 294, 349, 440, 349], bass: [131, 147, 165, 147] },
       { notes: [294, 370, 440, 370, 330, 392, 494, 392], bass: [147, 165, 185, 165] },
       { notes: [247, 311, 370, 466, 370, 311, 277, 349], bass: [123, 139, 156, 139] },
+      { notes: [262, 349, 440, 523, 494, 392, 330, 392], bass: [131, 175, 147, 196] },
     ];
     const theme = themes[this.musicTheme];
     const start = this.context.currentTime + 0.06;
@@ -275,6 +279,9 @@ class Soundboard {
         break;
       case "builder":
         [170, 220, 180].forEach((note, index) => this.tone(note, 0.055, "square", 0.065, index * 0.045));
+        break;
+      case "healer":
+        [330, 440, 523, 659].forEach((note, index) => this.tone(note, 0.15, "sine", 0.07, index * 0.055));
         break;
       case "goblin":
         this.noise(0.13, 0.11);
@@ -447,6 +454,12 @@ function renderTileContents(cell, tileCode, r, c) {
       cell.append(textNode("tile-badge tile-badge--pickup", "+1"));
       cell.append(textNode("tile-label", "BUILDER"));
       break;
+    case "healer":
+      cell.append(textNode("healer-aura", "✚"));
+      cell.append(image(ASSETS.healer, "entity entity--healer"));
+      cell.append(textNode("tile-badge tile-badge--healer", "↺"));
+      cell.append(textNode("tile-label", "HEALER"));
+      break;
     case "river": {
       const water = document.createElement("span");
       water.className = "river-water";
@@ -595,7 +608,14 @@ function renderLevelList() {
 }
 
 function renderRules() {
-  const rules = session.level.mode === "relief"
+  const rules = session.pack.id === "second-wind"
+    ? [
+        ["Build the company en route", "Every mission begins with the lone commander and no ready units."],
+        ["Spend soldiers at goblins", "Handled soldiers become tired, exactly as they do in the Green March."],
+        ["Time the healer", "A healer immediately returns every tired soldier to the ready line."],
+        ["Use the whole field", "Specialists, switches, and costs still resolve in the order you draw them."],
+      ]
+    : session.level.mode === "relief"
     ? [
         ["Feed from beside the trail", "Each adjacent route tile serves one meal."],
         ["Respect the movement budget", "The counter includes every step, and there is no room for loops."],
@@ -617,7 +637,9 @@ function renderRules() {
         ];
   dom.rulesList.innerHTML = rules.map(([title, copy]) => `<li><b>${title}</b><span>${copy}</span></li>`).join("");
 
-  const legend = session.level.mode === "relief"
+  const legend = session.pack.id === "second-wind"
+    ? [["recruit", "Recruit"], ["healer", "Healer"], ["danger", "Danger"]]
+    : session.level.mode === "relief"
     ? [["hungry", "Hungry"], ["served", "Served"], ["relief", "Relief trail"]]
     : session.level.mode === "convoy"
       ? [["commander", "Commander"], ["beacon", "Beacon"], ["locked", "Locked trail"]]
@@ -716,6 +738,7 @@ function renderPath() {
 
 function followerTypes() {
   const types = [];
+  for (let index = 0; index < session.party.healers; index += 1) types.push("healer");
   for (let index = 0; index < Math.min(session.party.soldiers, 4); index += 1) types.push("soldier");
   for (let index = 0; index < session.party.mages; index += 1) types.push("mage");
   for (let index = 0; index < session.party.builders; index += 1) types.push("builder");
@@ -739,13 +762,11 @@ function renderParty(animate = false) {
 }
 
 function bumpRoster(type) {
-  const card = type === "recruit" || type === "goblin"
-    ? dom.soldierCard
-    : type === "mage" || type === "dragon"
-      ? dom.mageCard
-      : type === "builder" || type === "river"
-        ? dom.builderCard
-        : null;
+  let card = null;
+  if (type === "recruit" || type === "goblin") card = dom.soldierCard;
+  if (type === "mage" || type === "dragon") card = dom.mageCard;
+  if (type === "builder" || type === "river") card = dom.builderCard;
+  if (type === "healer") card = dom.healerCard;
   if (!card) return;
   card.classList.remove("is-bumping");
   void card.offsetWidth;
@@ -757,9 +778,11 @@ function renderRoster(event = null) {
   dom.tiredCount.textContent = `${session.party.tired} tired`;
   dom.mageCount.textContent = String(session.party.mages);
   dom.builderCount.textContent = String(session.party.builders);
+  dom.healerCount.textContent = String(session.party.healers);
   dom.soldierCard.classList.toggle("is-active", session.party.soldiers > 0);
   dom.mageCard.classList.toggle("is-active", session.party.mages > 0);
   dom.builderCard.classList.toggle("is-active", session.party.builders > 0);
+  dom.healerCard.classList.toggle("is-active", session.party.healers > 0);
   dom.sunSeal.classList.toggle("is-open", session.party.switches.has("sun"));
   dom.moonSeal.classList.toggle("is-open", session.party.switches.has("moon"));
   renderRouteMeters();
@@ -790,7 +813,7 @@ function renderRouteMeters() {
   dom.movementLabel.textContent = "ROUTE LENGTH";
   dom.movementCount.textContent = String(Math.max(0, session.path.length - 1));
   dom.objectiveLabel.textContent = "READY COMPANY";
-  dom.objectiveCount.textContent = `${session.party.soldiers + session.party.mages + session.party.builders}`;
+  dom.objectiveCount.textContent = `${session.party.soldiers + session.party.mages + session.party.builders + session.party.healers}`;
 }
 
 function renderCommanderOrder() {
@@ -839,6 +862,9 @@ function eventStatus(event) {
     case "dragon": return "<b>DRAGON CALMED!</b> The mage stays to weave the spell.";
     case "builder": return "<b>BUILDER RALLIED!</b> One river can now be bridged.";
     case "river": return "<b>BRIDGE LAID!</b> The builder stays to finish the crossing.";
+    case "healer": return event.restored
+      ? `<b>SECOND WIND!</b> The healer returns ${event.restored} tired soldier${event.restored === 1 ? "" : "s"} to duty.`
+      : "<b>HEALER RALLIED!</b> No one is tired yet — timing matters.";
     case "switch": return `<b>${event.channel.toUpperCase()} SWITCH LIT!</b> Its matching gate is open.`;
     case "gate": return `<b>${event.channel.toUpperCase()} GATE OPEN!</b> March through.`;
     case "delivery": {
@@ -861,6 +887,7 @@ function audioCue(event) {
   if (event.type === "dragon") return "dragon";
   if (event.type === "builder") return "builder";
   if (event.type === "river") return "river";
+  if (event.type === "healer") return "healer";
   if (event.type === "switch") return "switch";
   if (event.type === "gate") return "gate";
   if (["delivery", "beacon", "mud", "supply", "current"].includes(event.type)) return event.type;
@@ -1174,9 +1201,9 @@ function finishLevel() {
 
   const isPackFinale = session.levelIndex === session.pack.levels.length - 1;
   const isGameFinale = isPackFinale && session.packIndex === PACKS.length - 1;
-  dom.victoryTitle.textContent = isGameFinale ? "Three banners rise!" : isPackFinale ? `${session.pack.shortName} complete!` : "Company assembled!";
+  dom.victoryTitle.textContent = isGameFinale ? "The company rises again!" : isPackFinale ? `${session.pack.shortName} complete!` : "Company assembled!";
   dom.victoryCopy.textContent = isGameFinale
-    ? "Every relief route is served and every commander stands beneath their standard."
+    ? "The lone commander turned every hard choice into one final, unstoppable company."
     : isPackFinale
       ? `${session.pack.name} is secure. A new campaign is ready.`
       : `${session.level.name} is secure. The next march awaits.`;

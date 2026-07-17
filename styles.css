@@ -42,9 +42,11 @@ body {
 
 body[data-pack="mint"] { --pack-accent: var(--mint); }
 body[data-pack="violet"] { --pack-accent: var(--violet); }
+body[data-pack="coral"] { --pack-accent: var(--coral); }
 
 body[data-pack="mint"] .sky-glow--one { opacity: 0.14; }
 body[data-pack="violet"] .sky-glow--two { opacity: 0.15; }
+body[data-pack="coral"] .sky-glow--one { background: var(--coral); opacity: 0.13; }
 
 body::before {
   position: fixed;
@@ -294,7 +296,7 @@ a:focus-visible {
 
 .pack-selector {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px;
   margin-bottom: 16px;
   padding-bottom: 15px;
@@ -344,9 +346,11 @@ a:focus-visible {
 .pack-tab--gold.is-current { border-color: rgba(255, 201, 92, 0.55); background: rgba(255, 201, 92, 0.11); }
 .pack-tab--mint.is-current { border-color: rgba(115, 224, 164, 0.55); background: rgba(115, 224, 164, 0.11); }
 .pack-tab--violet.is-current { border-color: rgba(169, 151, 255, 0.58); background: rgba(169, 151, 255, 0.12); }
+.pack-tab--coral.is-current { border-color: rgba(255, 118, 111, 0.58); background: rgba(255, 118, 111, 0.12); }
 .pack-tab--gold.is-current > span { background: var(--gold); }
 .pack-tab--mint.is-current > span { background: var(--mint); }
 .pack-tab--violet.is-current > span { background: var(--violet); }
+.pack-tab--coral.is-current > span { background: var(--coral); }
 .pack-tab.is-complete::after {
   position: absolute;
   top: 3px;
@@ -899,6 +903,37 @@ a:focus-visible {
   animation: dragonBreathe 1.45s steps(3, end) infinite;
 }
 
+.cell--healer {
+  background-image:
+    radial-gradient(circle at 50% 52%, rgba(255, 179, 172, 0.5), transparent 58%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
+  box-shadow: inset 0 0 0 2px rgba(255, 181, 175, 0.2);
+}
+
+.entity--healer {
+  width: 70%;
+  animation: healerFloat 1.1s steps(3, end) infinite;
+  filter: drop-shadow(0 0 7px rgba(255, 180, 173, 0.78));
+}
+
+.healer-aura {
+  position: absolute;
+  z-index: 2;
+  inset: 9%;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 226, 220, 0.34);
+  border: 2px dashed rgba(255, 190, 183, 0.6);
+  border-radius: 50%;
+  font-size: 18px;
+  animation: healerAura 1.4s steps(5, end) infinite;
+}
+
+.cell--healer.cell--visited .healer-aura {
+  opacity: 0.14;
+  animation: none;
+}
+
 .entity--goal {
   width: 64%;
   animation: bannerWave 1s steps(2, end) infinite;
@@ -940,6 +975,13 @@ a:focus-visible {
   border-color: #c2ffd9;
   background: var(--mint);
   box-shadow: 0 2px 0 #34775a;
+}
+
+.tile-badge--healer {
+  color: #4c202c;
+  border-color: #ffe2dc;
+  background: var(--coral);
+  box-shadow: 0 2px 0 #853f49;
 }
 
 .tile-label {
@@ -1241,6 +1283,11 @@ a:focus-visible {
   background: rgba(115, 224, 164, 0.07);
 }
 
+.roster-card--healer.is-active {
+  border-color: rgba(255, 118, 111, 0.48);
+  background: rgba(255, 118, 111, 0.09);
+}
+
 .roster-card.is-bumping {
   animation: rosterBump 260ms ease-out;
 }
@@ -1483,6 +1530,7 @@ a:focus-visible {
 .legend-swatch--commander { background: var(--violet); }
 .legend-swatch--beacon { background: var(--gold); box-shadow: 0 0 5px var(--gold); }
 .legend-swatch--locked { background: #5f7fa7; }
+.legend-swatch--healer { background: var(--coral); box-shadow: 0 0 5px rgba(255, 118, 111, 0.7); }
 
 footer {
   display: flex;
@@ -1665,6 +1713,8 @@ dialog::backdrop {
 @keyframes waterShimmer { 50% { filter: brightness(1.08) hue-rotate(3deg); } }
 @keyframes riverCurrent { to { transform: translateX(31px); } }
 @keyframes hungryBounce { 50% { transform: translateX(-50%) translateY(-3px) scaleY(1.06); } }
+@keyframes healerFloat { 50% { transform: translateX(-50%) translateY(-4px); filter: brightness(1.2) drop-shadow(0 0 9px rgba(255, 180, 173, 0.9)); } }
+@keyframes healerAura { to { transform: rotate(360deg); opacity: 0.72; } }
 @keyframes fedDance { 25% { transform: translateX(-50%) rotate(-7deg) translateY(-4px); } 75% { transform: translateX(-50%) rotate(7deg) translateY(-4px); } }
 @keyframes mudBubble { 50% { transform: scale(1.25); opacity: 0.5; } }
 @keyframes supplyPulse { 50% { transform: translateX(-50%) translateY(-2px); filter: brightness(1.25) drop-shadow(0 0 6px var(--gold)); } }
@@ -1853,7 +1903,6 @@ dialog::backdrop {
   .route-line { stroke-width: 5px; }
   .tile-label { display: none; }
 
-  .pack-tab strong { display: none; }
   .pack-tab { min-height: 48px; }
 
   .board-frame--dense .tile-badge {
@@ -1892,6 +1941,7 @@ dialog::backdrop {
   }
 
   .roster-card--soldier { grid-column: 1 / -1; }
+  .roster-card--healer { grid-column: 1 / -1; }
   .roster-card { grid-template-columns: 34px 1fr; }
   .roster-card img { width: 34px; }
   .roster-card small { display: none; }

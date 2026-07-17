@@ -1,6 +1,6 @@
 # Flow Commander
 
-A complete, dependency-free browser puzzle game about drawing exact routes, feeding monsters, and coordinating tiny specialist commanders. The campaign now contains 21 handcrafted puzzles across three distinct level packs.
+A complete, dependency-free browser puzzle game about drawing exact routes and assembling the right tiny company. The campaign contains 24 handcrafted puzzles across four distinct level packs.
 
 ## Play
 
@@ -24,8 +24,9 @@ Controls:
 - **The Green March — 10 levels.** Recruit soldiers, builders, and mages; resolve goblins, real river crossings, dragons, switches, and gates in route order.
 - **Relief Routes — 6 levels.** Feed every peaceful monster from a neighboring route tile while staying inside a strict movement budget. One tile can serve several monsters, so spatial coverage matters more than choosing a fork.
 - **The Three Banners — 5 levels.** Command Alder, Bramble, and Cinder in order. Their trails lock behind them and cannot cross; later maps add beacons, mud, supply caches, and one-way marching arrows.
+- **The Second Wind — 3 levels.** Return to the lone original commander with no army, gather units en route, and use one new Healer recruit to restore tired soldiers at exactly the right moment.
 
-Each pack teaches its rules with a gentle first map and builds toward deliberately interlocked finales. Progress is stored separately per pack.
+Each pack builds toward a deliberately interlocked finale, while progress is stored separately per pack.
 
 ## Validate levels
 
@@ -33,7 +34,7 @@ Each pack teaches its rules with a gentle first map and builds toward deliberate
 npm test
 ```
 
-The exhaustive search validator uses the same transition engine as gameplay. It fails unless every level has exactly one complete solution, the search finishes without hitting its safety limit, each mechanic is exercised, routes validate in play order, and the measured complexity strictly rises through Packs 2 and 3. `tests/curate-relief.mjs` is also included as a deterministic mixed-authorship tool: it explores terrain variants, rejects zero- and multi-solution maps, and ranks the survivors by search-tree complexity.
+The exhaustive search validator uses the same transition engine as gameplay. It fails unless every level has exactly one complete solution, the search finishes without hitting its safety limit, each mechanic is exercised, routes validate in play order, and the measured complexity strictly rises through Packs 2–4. Pack 4 additionally proves that every healer restores tired soldiers between two separate combat costs. `tests/curate-relief.mjs` is also included as a deterministic mixed-authorship tool: it explores terrain variants, rejects zero- and multi-solution maps, and ranks the survivors by search-tree complexity.
 
 ## Art and sound
 

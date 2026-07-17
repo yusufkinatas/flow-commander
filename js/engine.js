@@ -12,6 +12,8 @@ export const TILE_DEFS = Object.freeze({
   d: { type: "dragon", walkable: true, label: "Dragon · needs a mage" },
   b: { type: "builder", walkable: true, label: "Builder" },
   "~": { type: "river", walkable: true, label: "River · needs a builder" },
+  // The Second Wind: this is the pack's only new recruit type.
+  f: { type: "healer", walkable: true, label: "Field healer · restores every tired soldier" },
   y: { type: "switch", walkable: true, channel: "sun", label: "Sun switch" },
   Y: { type: "gate", walkable: true, channel: "sun", label: "Sun gate" },
   q: { type: "switch", walkable: true, channel: "moon", label: "Moon switch" },
@@ -126,6 +128,7 @@ export function createPartyState(initial = {}) {
     tired: initial.tired ?? 0,
     mages: initial.mages ?? 0,
     builders: initial.builders ?? 0,
+    healers: initial.healers ?? 0,
     switches: new Set(initial.switches ?? []),
     deliveries: new Map(initial.deliveries ?? []),
     beacons: new Set(initial.beacons ?? []),
@@ -175,6 +178,14 @@ export function enterTile(state, tileCode, position) {
       next.builders += 1;
       next.events.push(baseEvent);
       break;
+    case "healer": {
+      const restored = next.tired;
+      next.healers += 1;
+      next.soldiers += restored;
+      next.tired = 0;
+      next.events.push({ ...baseEvent, restored });
+      break;
+    }
     case "river":
       if (next.builders < 1) return { ok: false, reason: "A builder is needed to lay a safe bridge here." };
       next.builders -= 1;

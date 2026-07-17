@@ -1,0 +1,21 @@
+export const SECOND_WIND_LEVEL_3 = {
+  id: 3,
+  name: "The Army That Marched Twice",
+  difficulty: 10,
+  mechanic: "Make one army serve twice",
+  briefing: "Four scattered levies can clear the inner patrols or the outer climb — but only a complete winding muster lets one company do both.",
+  tip: "Count the climb first: its guards need seven ready soldiers. The inner patrols can tire exactly seven before the healer.",
+  map: [
+    "###############",
+    "#S.g...r..#####",
+    "#.#.#.#.#.#####",
+    "#R...g...o#..G#",
+    "#.###.#.#.#.###",
+    "#..R..#R..#o.o#",
+    "#.#.#.#.#####.#",
+    "#t....#y..#~.t#",
+    "#.#.#.#.#.#.###",
+    "#..b#....f.Y###",
+    "###############",
+  ],
+};

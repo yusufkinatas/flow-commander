@@ -28,7 +28,7 @@
       <div class="chapter-mark" aria-live="polite">
         <span id="chapterLabel">CHAPTER 01</span>
         <i></i>
-        <span>THE GREEN MARCH</span>
+        <span id="packTitleLabel">THE GREEN MARCH</span>
       </div>
 
       <div class="top-actions">
@@ -45,8 +45,9 @@
 
     <main class="game-shell" id="game">
       <aside class="campaign-panel panel">
+        <div class="pack-selector" id="packSelector" role="tablist" aria-label="Choose a level pack"></div>
         <div class="panel-heading">
-          <span class="eyebrow">THE MARCH</span>
+          <span class="eyebrow" id="campaignEyebrow">CLASSIC CAMPAIGN</span>
           <span class="progress-copy" id="progressCopy">0 / 10 CLEARED</span>
         </div>
         <div class="campaign-progress" aria-hidden="true">
@@ -55,7 +56,7 @@
         <nav class="level-list" id="levelList" aria-label="Choose a level"></nav>
         <div class="campaign-note">
           <span aria-hidden="true">✦</span>
-          <p>Every map has one true route. All chapters stay open, so you can scout ahead.</p>
+          <p id="packDescription">Every map has one true route. All chapters stay open, so you can scout ahead.</p>
         </div>
       </aside>
 
@@ -99,11 +100,7 @@
               role="grid"
               aria-label="Puzzle map. Draw from the commander to the banner."
             ></div>
-            <svg class="route-layer" id="routeLayer" aria-hidden="true">
-              <polyline class="route-shadow" id="routeShadow"></polyline>
-              <polyline class="route-line" id="routeLine"></polyline>
-              <circle class="route-head" id="routeHead" r="0.19"></circle>
-            </svg>
+            <svg class="route-layer" id="routeLayer" aria-hidden="true"></svg>
             <div class="party-token" id="partyToken" aria-hidden="true"></div>
             <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
           </div>
@@ -142,6 +139,19 @@
           </div>
         </div>
 
+        <div class="route-meters" id="routeMeters">
+          <div class="route-meter">
+            <span id="movementLabel">ROUTE LENGTH</span>
+            <strong id="movementCount">0</strong>
+          </div>
+          <div class="route-meter route-meter--objective">
+            <span id="objectiveLabel">OBJECTIVES</span>
+            <strong id="objectiveCount">—</strong>
+          </div>
+        </div>
+
+        <div class="commander-order" id="commanderOrder" hidden aria-label="Commander route order"></div>
+
         <div class="seal-meter" id="sealMeter" hidden>
           <span>OPEN SEALS</span>
           <div class="seal-chips">
@@ -155,7 +165,7 @@
             <span aria-hidden="true">⌁</span>
             <h2 id="rulesTitle">FIELD RULES</h2>
           </div>
-          <ol>
+          <ol id="rulesList">
             <li><b>Draw one route</b><span>Move only up, down, left, or right.</span></li>
             <li><b>Never cross your trail</b><span>Pull back one tile to undo while drawing.</span></li>
             <li><b>Rally before danger</b><span>Units and switches resolve in route order.</span></li>
@@ -163,7 +173,7 @@
           </ol>
         </section>
 
-        <div class="legend" aria-label="Map legend">
+        <div class="legend" id="mapLegend" aria-label="Map legend">
           <span><i class="legend-swatch legend-swatch--recruit"></i> Recruit</span>
           <span><i class="legend-swatch legend-swatch--danger"></i> Danger</span>
           <span><i class="legend-swatch legend-swatch--route"></i> Your route</span>
@@ -203,7 +213,7 @@
         <li><a href="https://kenney.nl/assets/tiny-battle" target="_blank" rel="noreferrer">Tiny Battle</a> — water tiles by Kenney</li>
         <li><a href="https://opengameart.org/content/tiny-creatures" target="_blank" rel="noreferrer">Tiny Creatures</a> — goblins & dragons by Clint Bellanger</li>
       </ul>
-      <p class="credits-note">Sound effects are synthesized in your browser with Web Audio.</p>
+      <p class="credits-note">Music and sound effects are synthesized in your browser with Web Audio.</p>
     </dialog>
 
     <script type="module" src="./js/game.js"></script>

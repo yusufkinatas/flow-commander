@@ -1,0 +1,21 @@
+export const RELIEF_LEVEL_5 = {
+  id: 5,
+  mode: "relief",
+  name: "The Split Orchard",
+  difficulty: 9,
+  mechanic: "Shared delivery corners",
+  briefing: "The orchard opens in two directions, but four hungry neighbors share a tight final approach. Serve every badge before reaching the lantern banner.",
+  tip: "Count the mandatory neighbor cells before connecting them. This route has no spare steps.",
+  maxMoves: 18,
+  map: [
+    "#############",
+    "#.........#.#",
+    "#...........#",
+    "#.#.........#",
+    "###S#########",
+    "#...........#",
+    "#.......h..G#",
+    "#.H.....hH..#",
+    "#############",
+  ],
+};

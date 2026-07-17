@@ -1,0 +1,25 @@
+export const BANNER_LEVEL_4 = {
+  id: 4,
+  mode: "convoy",
+  name: "The Braided Fen",
+  difficulty: 9.5,
+  mechanic: "Route allocation in the fen",
+  briefing: "Three winding roads touch at tempting junctions. Claim both beacons without sealing a later banner away.",
+  tip: "Bramble needs the early cache to afford the mud. Cinder's arrow points toward more than a shortcut.",
+  commanders: [
+    { id: "captain", name: "Captain Alder", startTile: "A", goalTile: "X", maxMoves: 23, initial: { soldiers: 2 } },
+    { id: "warden", name: "Warden Bramble", startTile: "B", goalTile: "Z", maxMoves: 18, initial: { builders: 1 } },
+    { id: "sage", name: "Sage Cinder", startTile: "C", goalTile: "V", maxMoves: 18, initial: { mages: 1 } },
+  ],
+  map: [
+    "###############",
+    "#A#....#...#.X#",
+    "#..#g#...#.#.##",
+    "##.*.#...#....#",
+    "#B#...#...#..Z#",
+    "#.c.#~..#w..###",
+    "##...#d.v#...##",
+    "#C.#...#.*.#.V#",
+    "###############",
+  ],
+};

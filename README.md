@@ -1,33 +1,31 @@
 # Flow Commander
 
-A complete, dependency-free browser puzzle game. Draw one continuous orthogonal route from the lone commander to the royal banner, recruiting the exact company needed for every encounter along the way.
+A complete, dependency-free browser puzzle game about drawing exact routes, feeding monsters, and coordinating tiny specialist commanders. The campaign now contains 21 handcrafted puzzles across three distinct level packs.
 
 ## Play
 
 From this folder, start any static file server:
 
 ```sh
-python3 -m http.server 4173
+python3 -m http.server 4174
 ```
 
-Then open `http://127.0.0.1:4173`.
+Then open `http://127.0.0.1:4174`.
 
 Controls:
 
-- Mouse, touch, or pen: press the commander and drag through adjacent tiles.
+- Mouse, touch, or pen: press the active commander and drag through adjacent tiles.
 - Tap/click an adjacent tile to extend the route one step at a time.
 - Drag back one tile or use **Undo** to retract.
 - Keyboard: arrow keys move, Backspace undoes, `R` resets, and `H` gives a nudge.
 
-## Campaign mechanics
+## Level packs
 
-- Soldiers are consumed by goblin encounters; enemy badges show the exact cost.
-- One builder is assigned to each river crossing.
-- One mage is assigned to each dragon.
-- Sun and Moon switches permanently open their matching gates for the current route.
-- The route may not cross itself and the banner must be the final tile.
+- **The Green March — 10 levels.** Recruit soldiers, builders, and mages; resolve goblins, real river crossings, dragons, switches, and gates in route order.
+- **Relief Routes — 6 levels.** Feed every peaceful monster from a neighboring route tile while staying inside a strict movement budget. One tile can serve several monsters, so spatial coverage matters more than choosing a fork.
+- **The Three Banners — 5 levels.** Command Alder, Bramble, and Cinder in order. Their trails lock behind them and cannot cross; later maps add beacons, mud, supply caches, and one-way marching arrows.
 
-The campaign contains 10 progressively harder levels. The last two require planning several forks backward from the final obstacle sequence.
+Each pack teaches its rules with a gentle first map and builds toward deliberately interlocked finales. Progress is stored separately per pack.
 
 ## Validate levels
 
@@ -35,7 +33,7 @@ The campaign contains 10 progressively harder levels. The last two require plann
 npm test
 ```
 
-The exhaustive DFS validator uses the same transition engine as gameplay and fails unless every level has exactly one legal route.
+The exhaustive search validator uses the same transition engine as gameplay. It fails unless every level has exactly one complete solution, the search finishes without hitting its safety limit, each mechanic is exercised, routes validate in play order, and the measured complexity strictly rises through Packs 2 and 3. `tests/curate-relief.mjs` is also included as a deterministic mixed-authorship tool: it explores terrain variants, rejects zero- and multi-solution maps, and ranks the survivors by search-tree complexity.
 
 ## Art and sound
 
@@ -44,4 +42,4 @@ All art is downloaded into `assets/vendor` and works offline. It is licensed und
 - [Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon), [Tiny Town](https://kenney.nl/assets/tiny-town), [Tiny Farm](https://kenney.nl/assets/tiny-farm), and [Tiny Battle](https://kenney.nl/assets/tiny-battle) by Kenney.
 - [Tiny Creatures](https://opengameart.org/content/tiny-creatures) by Clint Bellanger.
 
-Attribution is not required by the licenses, but is included in the game and here as a courtesy. Sound effects are generated locally with the Web Audio API; there are no remote runtime dependencies.
+Attribution is not required by the licenses, but is included in the game and here as a courtesy. Pack-specific chiptune music and sound effects are synthesized locally with the Web Audio API; there are no remote runtime dependencies.

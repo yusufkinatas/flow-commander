@@ -1,0 +1,25 @@
+export const BANNER_LEVEL_5 = {
+  id: 5,
+  mode: "convoy",
+  name: "The Confluence Oath",
+  difficulty: 10,
+  mechanic: "Master shared-space allocation",
+  briefing: "Six beacons lace one braided frontier. Lock Alder, Bramble, then Cinder without stealing the ground a later specialist must cross.",
+  tip: "A cache makes mud affordable; marching arrows reveal which specialist should inherit each contested bend.",
+  commanders: [
+    { id: "captain", name: "Captain Alder", startTile: "A", goalTile: "X", maxMoves: 23, initial: { soldiers: 2 } },
+    { id: "warden", name: "Warden Bramble", startTile: "B", goalTile: "Z", maxMoves: 18, initial: { builders: 1 } },
+    { id: "sage", name: "Sage Cinder", startTile: "C", goalTile: "V", maxMoves: 18, initial: { mages: 1 } },
+  ],
+  map: [
+    "###############",
+    "#A*....#...#.X#",
+    "#..#g#.*...#.##",
+    "##.*^...*#....#",
+    "#B#..v#...#..Z#",
+    "#.c.#~..#w..###",
+    "##....d.v#...##",
+    "#C.#*>.#.*.#.V#",
+    "###############",
+  ],
+};

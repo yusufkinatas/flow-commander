@@ -1,0 +1,21 @@
+export const RELIEF_LEVEL_6 = {
+  id: 6,
+  mode: "relief",
+  name: "The Ember Constellation",
+  difficulty: 10,
+  mechanic: "Overlapping relief geometry",
+  briefing: "Eight hungry neighbors share one last meadow. Serve every table, then reach the banner in exactly twenty-eight careful steps.",
+  tip: "One meadow can feed two neighbors. Find those shared serving squares first, then connect them without crossing your trail.",
+  maxMoves: 28,
+  map: [
+    "#############",
+    "#S....#.#h.##",
+    "#..........H#",
+    "#H.#....#...#",
+    "##.H#..#h...#",
+    "#....#..##..#",
+    "#..h.H..##..#",
+    "#.#h.......G#",
+    "#############",
+  ],
+};

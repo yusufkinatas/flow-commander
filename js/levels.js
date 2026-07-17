@@ -1,4 +1,6 @@
 import { parseLevel } from "./engine.js";
+import { RELIEF_ROUTES_RAW } from "./packs/relief-routes.js";
+import { THREE_BANNERS_RAW } from "./packs/three-banners.js";
 
 const RAW_LEVELS = [
   {
@@ -153,4 +155,46 @@ const RAW_LEVELS = [
   },
 ];
 
-export const LEVELS = RAW_LEVELS.map(parseLevel);
+const GREEN_MARCH_LEVELS = RAW_LEVELS.map((level) => parseLevel({ ...level, mode: "campaign" }));
+const RELIEF_ROUTE_LEVELS = RELIEF_ROUTES_RAW.map(parseLevel);
+const THREE_BANNER_LEVELS = THREE_BANNERS_RAW.map(parseLevel);
+
+export const PACKS = Object.freeze([
+  {
+    id: "green-march",
+    number: 1,
+    name: "The Green March",
+    shortName: "Green March",
+    eyebrow: "CLASSIC CAMPAIGN",
+    description: "Recruit specialists, pay every obstacle cost, and reach the royal banner.",
+    accent: "gold",
+    levels: GREEN_MARCH_LEVELS,
+  },
+  {
+    id: "relief-routes",
+    number: 2,
+    name: "Relief Routes",
+    shortName: "Relief Routes",
+    eyebrow: "ADJACENT DELIVERY",
+    description: "Feed every friendly monster beside your trail, then reach camp within the movement budget.",
+    accent: "mint",
+    levels: RELIEF_ROUTE_LEVELS,
+  },
+  {
+    id: "three-banners",
+    number: 3,
+    name: "The Three Banners",
+    shortName: "Three Banners",
+    eyebrow: "MULTI-COMMAND",
+    description: "Lock specialist routes one by one. Trails cannot cross, and every beacon must be claimed.",
+    accent: "violet",
+    levels: THREE_BANNER_LEVELS,
+  },
+]);
+
+export const LEVELS = PACKS[0].levels;
+export const ALL_LEVELS = PACKS.flatMap((pack) => pack.levels);
+
+export function levelKey(pack, level) {
+  return `${pack.id}:${level.id}`;
+}

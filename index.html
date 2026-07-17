@@ -32,6 +32,10 @@
       </div>
 
       <div class="top-actions">
+        <button class="icon-button" id="designerButton" type="button" aria-label="Open level designer">
+          <span class="icon-button__glyph" aria-hidden="true">▦</span>
+          <span class="icon-button__label">DESIGN</span>
+        </button>
         <button class="icon-button" id="soundButton" type="button" aria-label="Mute sound" title="Mute sound">
           <span class="icon-button__glyph" aria-hidden="true">♪</span>
           <span class="icon-button__label">SOUND</span>
@@ -72,6 +76,9 @@
             <p id="levelBriefing">Start alone. Draw through the soldier, then clear the goblin watch.</p>
           </div>
           <div class="mission-tools">
+            <button class="tool-button tool-button--workshop" id="backToDesignerButton" type="button" hidden>
+              <span aria-hidden="true">▦</span> BACK TO DESIGNER
+            </button>
             <button class="tool-button" id="undoButton" type="button" disabled>
               <span aria-hidden="true">↶</span> UNDO
             </button>
@@ -155,7 +162,7 @@
           </div>
         </div>
 
-        <div class="commander-order" id="commanderOrder" hidden aria-label="Commander route order"></div>
+        <div class="commander-order" id="commanderOrder" hidden aria-label="Choose a commander"></div>
 
         <div class="seal-meter" id="sealMeter" hidden>
           <span>OPEN SEALS</span>
@@ -172,7 +179,7 @@
           </div>
           <ol id="rulesList">
             <li><b>Draw one route</b><span>Move only up, down, left, or right.</span></li>
-            <li><b>Never cross your trail</b><span>Pull back one tile to undo while drawing.</span></li>
+            <li><b>Rewind freely</b><span>Drag onto any earlier trail tile to pull back there instantly.</span></li>
             <li><b>Rally before danger</b><span>Units and switches resolve in route order.</span></li>
             <li><b>End at the banner</b><span>Arrive with every obstacle handled.</span></li>
           </ol>
@@ -203,6 +210,158 @@
       <div class="dialog-actions">
         <button class="secondary-button" id="replayButton" type="button">REPLAY</button>
         <button class="primary-button" id="nextButton" type="button">NEXT MARCH <span>→</span></button>
+      </div>
+    </dialog>
+
+    <dialog class="designer-dialog" id="designerDialog" aria-labelledby="designerTitle" aria-describedby="designerDescription">
+      <div class="designer-shell">
+        <header class="designer-head">
+          <div>
+            <span class="eyebrow">FIELD CARTOGRAPHY</span>
+            <h2 id="designerTitle">Level Workshop</h2>
+            <p id="designerDescription">Paint a puzzle, test its route, then copy the level data to share it.</p>
+          </div>
+          <div class="designer-head__save" aria-live="polite">
+            <span class="designer-save-light" aria-hidden="true"></span>
+            <span id="designerAutosave">Saved in this browser</span>
+          </div>
+          <button class="dialog-close" id="closeDesignerButton" type="button" aria-label="Close level designer">×</button>
+        </header>
+
+        <div class="designer-layout">
+          <aside class="designer-sidebar" aria-label="Level settings">
+            <section class="designer-section">
+              <div class="designer-section__heading">
+                <span>01</span>
+                <h3>SAVED MAPS</h3>
+              </div>
+              <label class="designer-field designer-field--wide" for="designSelect">
+                <span>Current design</span>
+                <select id="designSelect" aria-describedby="designerAutosave"></select>
+              </label>
+              <div class="designer-mini-actions" aria-label="Manage saved designs">
+                <button id="newDesignButton" type="button"><span aria-hidden="true">＋</span> NEW</button>
+                <button id="duplicateDesignButton" type="button"><span aria-hidden="true">⧉</span> COPY</button>
+                <button class="is-danger" id="deleteDesignButton" type="button"><span aria-hidden="true">×</span> DELETE</button>
+              </div>
+            </section>
+
+            <section class="designer-section">
+              <div class="designer-section__heading">
+                <span>02</span>
+                <h3>MISSION NOTES</h3>
+              </div>
+              <div class="designer-form-grid">
+                <label class="designer-field designer-field--wide" for="designName">
+                  <span>Level name</span>
+                  <input id="designName" type="text" maxlength="60" autocomplete="off" placeholder="A clever march" />
+                </label>
+                <label class="designer-field" for="designDifficulty">
+                  <span>Difficulty</span>
+                  <select id="designDifficulty">
+                    <option value="Gentle">Gentle</option>
+                    <option value="Tricky">Tricky</option>
+                    <option value="Clever">Clever</option>
+                    <option value="Hard">Hard</option>
+                    <option value="Master">Master</option>
+                  </select>
+                </label>
+                <label class="designer-field" for="designMechanic">
+                  <span>Mechanic label</span>
+                  <input id="designMechanic" type="text" maxlength="70" autocomplete="off" placeholder="RALLY + RESCUE" />
+                </label>
+                <label class="designer-field designer-field--wide" for="designBriefing">
+                  <span>Briefing</span>
+                  <textarea id="designBriefing" rows="3" maxlength="240" placeholder="Tell the commander what this mission is about."></textarea>
+                </label>
+                <label class="designer-field designer-field--wide" for="designTip">
+                  <span>Tip</span>
+                  <textarea id="designTip" rows="2" maxlength="180" placeholder="A small hint about the level's idea."></textarea>
+                </label>
+              </div>
+            </section>
+
+            <section class="designer-section designer-section--size">
+              <div class="designer-section__heading">
+                <span>03</span>
+                <h3>MAP SIZE</h3>
+              </div>
+              <div class="designer-size-fields">
+                <label class="designer-field" for="designWidth">
+                  <span>Width</span>
+                  <input id="designWidth" type="number" min="4" max="24" step="1" inputmode="numeric" />
+                </label>
+                <span aria-hidden="true">×</span>
+                <label class="designer-field" for="designHeight">
+                  <span>Height</span>
+                  <input id="designHeight" type="number" min="4" max="16" step="1" inputmode="numeric" />
+                </label>
+              </div>
+            </section>
+          </aside>
+
+          <div class="designer-workspace">
+            <section class="designer-paint-panel" aria-labelledby="designerPaintTitle">
+              <div class="designer-workspace-heading">
+                <div>
+                  <span class="eyebrow">PAINT THE MARCH</span>
+                  <h3 id="designerPaintTitle">Choose a tile, then draw</h3>
+                </div>
+                <p>Drag to paint · one start and banner per map</p>
+              </div>
+
+              <div
+                class="designer-palette"
+                id="designerPalette"
+                role="toolbar"
+                aria-label="Choose a tile to paint"
+              ></div>
+
+              <div class="designer-grid-scroll" tabindex="0" aria-label="Scrollable level canvas">
+                <div
+                  class="designer-grid"
+                  id="designerGrid"
+                  role="grid"
+                  aria-label="Level painting grid"
+                  aria-describedby="designerPaintHelp designerStatus"
+                ></div>
+              </div>
+              <p class="designer-paint-help" id="designerPaintHelp">Select a brush above. Click or drag across the grid to paint tiles.</p>
+            </section>
+
+            <section class="designer-check-panel" aria-labelledby="designerCheckTitle">
+              <div>
+                <span class="eyebrow">ROUTE CHECK</span>
+                <h3 id="designerCheckTitle">Is the puzzle ready?</h3>
+                <p class="designer-status" id="designerStatus" role="status" aria-live="polite">Paint a start, a banner, and a route to begin.</p>
+              </div>
+              <div class="designer-primary-actions">
+                <button class="secondary-button" id="analyzeDesignButton" type="button">
+                  <span aria-hidden="true">⌁</span> ANALYZE
+                </button>
+                <button class="primary-button" id="playtestDesignButton" type="button">
+                  PLAYTEST <span aria-hidden="true">▶</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="designer-export" aria-labelledby="designerExportTitle">
+              <div class="designer-export__heading">
+                <div>
+                  <span class="eyebrow">SHAREABLE LEVEL DATA</span>
+                  <h3 id="designerExportTitle">Copy your map</h3>
+                </div>
+                <button class="secondary-button" id="copyDesignButton" type="button">
+                  <span aria-hidden="true">⧉</span> COPY LEVEL
+                </button>
+              </div>
+              <label class="designer-field designer-field--wide" for="designExport">
+                <span class="sr-only">Exported level data</span>
+                <textarea id="designExport" rows="7" readonly spellcheck="false"></textarea>
+              </label>
+            </section>
+          </div>
+        </div>
       </div>
     </dialog>
 

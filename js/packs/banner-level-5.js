@@ -4,7 +4,7 @@ export const BANNER_LEVEL_5 = {
   name: "The Confluence Oath",
   difficulty: 10,
   mechanic: "Master shared-space allocation",
-  briefing: "Six beacons lace one braided frontier. Lock Alder, Bramble, then Cinder without stealing the ground a later specialist must cross.",
+  briefing: "Six beacons lace one braided frontier. Choose your commanders freely without stealing ground another specialist must cross.",
   tip: "A cache makes mud affordable; marching arrows reveal which specialist should inherit each contested bend.",
   commanders: [
     { id: "captain", name: "Captain Alder", startTile: "A", goalTile: "X", maxMoves: 23, initial: { soldiers: 2 } },

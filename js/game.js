@@ -14,6 +14,7 @@ import {
   solveLevel,
 } from "./engine.js";
 import { PACKS, levelKey } from "./levels.js";
+import { createLevelDesigner } from "./designer.js";
 
 const ASSETS = Object.freeze({
   commander: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0100.png",
@@ -86,6 +87,7 @@ const dom = {
   undo: document.querySelector("#undoButton"),
   reset: document.querySelector("#resetButton"),
   hint: document.querySelector("#hintButton"),
+  backToDesigner: document.querySelector("#backToDesignerButton"),
   sound: document.querySelector("#soundButton"),
   credits: document.querySelector("#creditsButton"),
   closeCredits: document.querySelector("#closeCreditsButton"),
@@ -340,6 +342,7 @@ const session = {
   level: PACKS[0].levels[0],
   path: [],
   routes: [],
+  drafts: new Map(),
   commanderIndex: 0,
   party: createPartyState(),
   completed: readCompleted(),
@@ -348,7 +351,11 @@ const session = {
   mode: "idle",
   statusTimer: null,
   victoryTimer: null,
+  blockedFeedback: { key: "", at: 0, audioAt: 0 },
+  lastUndoAt: 0,
+  playtest: null,
 };
+let designerController = null;
 
 function currentCommander() {
   return session.level.mode === "convoy" ? session.level.commanders[session.commanderIndex] : null;
@@ -363,6 +370,7 @@ function activeGoal() {
 }
 
 function currentLevelKey() {
+  if (session.playtest) return `designer:${session.playtest.designId}:${session.level.map.join("/")}`;
   return levelKey(session.pack, session.level);
 }
 
@@ -372,10 +380,21 @@ function cachedSolution() {
   return solutionCache.get(cacheKey);
 }
 
-function completedBeaconSet(includeActive = true) {
+function completedCommanderIds() {
+  return new Set(session.routes.map((route) => route.commanderId));
+}
+
+function visibleBeaconSet(includeActive = true) {
   const beacons = new Set();
   session.routes.forEach((route) => route.state.beacons.forEach((key) => beacons.add(key)));
+  session.drafts.forEach((draft) => draft.state.beacons.forEach((key) => beacons.add(key)));
   if (includeActive) session.party.beacons.forEach((key) => beacons.add(key));
+  return beacons;
+}
+
+function securedBeaconSet() {
+  const beacons = new Set();
+  session.routes.forEach((route) => route.state.beacons.forEach((key) => beacons.add(key)));
   return beacons;
 }
 
@@ -529,6 +548,7 @@ function renderTileContents(cell, tileCode, r, c) {
 
 function renderBoard() {
   const level = session.level;
+  const completeCommanders = completedCommanderIds();
   dom.board.replaceChildren();
   dom.board.dataset.mode = level.mode;
   dom.boardFrame.dataset.mode = level.mode;
@@ -551,7 +571,8 @@ function renderBoard() {
       cell.dataset.key = `${r},${c}`;
       if (level.mode === "convoy" && def.commander) {
         cell.classList.toggle("is-active-commander", def.commander === currentCommander()?.id);
-        cell.classList.toggle("is-locked-commander", session.routes.some((route) => route.commanderId === def.commander));
+        cell.classList.toggle("is-locked-commander", completeCommanders.has(def.commander));
+        cell.classList.toggle("has-draft-commander", session.drafts.has(def.commander));
       }
       cell.setAttribute("role", "gridcell");
       cell.setAttribute("aria-label", `${def.label}, row ${r + 1}, column ${c + 1}`);
@@ -624,14 +645,14 @@ function renderRules() {
       ]
     : session.level.mode === "convoy"
       ? [
-          ["Command in the shown order", "Finish the glowing commander's route before the next begins."],
-          ["Locked routes become walls", "No commander may cross any earlier trail."],
+          ["Choose any commander", "Switch from a commander card or an unfinished commander's start tile."],
+          ["Every route reserves space", "Completed and unfinished trails stay put, so commanders cannot cross."],
           ["Use each specialty", "Alder has soldiers, Bramble builds, and Cinder calms dragons."],
           ["Claim the full mission", "Reach matching standards and include every beacon across the routes."],
         ]
       : [
           ["Draw one route", "Move only up, down, left, or right."],
-          ["Never cross your trail", "Pull back one tile to undo while drawing."],
+          ["Rewind freely", "Drag onto any earlier trail tile to pull back there instantly."],
           ["Rally before danger", "Units and switches resolve in route order."],
           ["End at the banner", "Arrive with every obstacle handled."],
         ];
@@ -651,9 +672,9 @@ function renderRules() {
 
 function renderMetadata() {
   const level = session.level;
-  dom.levelNumber.textContent = `LEVEL ${String(level.id).padStart(2, "0")}`;
-  dom.chapter.textContent = `PACK 0${session.pack.number} · ${String(level.id).padStart(2, "0")}`;
-  dom.packTitle.textContent = session.pack.name.toUpperCase();
+  dom.levelNumber.textContent = session.playtest ? "DRAFT PLAYTEST" : `LEVEL ${String(level.id).padStart(2, "0")}`;
+  dom.chapter.textContent = session.playtest ? "WORKSHOP · PLAYTEST" : `PACK 0${session.pack.number} · ${String(level.id).padStart(2, "0")}`;
+  dom.packTitle.textContent = session.playtest ? "CUSTOM LEVEL" : session.pack.name.toUpperCase();
   dom.campaignEyebrow.textContent = session.pack.eyebrow;
   dom.packDescription.textContent = session.pack.description;
   dom.levelTitle.textContent = level.name;
@@ -674,19 +695,28 @@ function svgNode(name, className) {
 }
 
 function allVisibleRoutes() {
-  const locked = session.routes.map((route, index) => ({
+  const visible = session.routes.map((route, index) => ({
     path: route.path,
     className: route.commanderId ?? `route-${index}`,
     locked: true,
   }));
+  session.drafts.forEach((draft, commanderId) => {
+    if (!draft.path.length) return;
+    visible.push({
+      path: draft.path,
+      className: commanderId,
+      locked: false,
+      draft: true,
+    });
+  });
   if (session.path.length) {
-    locked.push({
+    visible.push({
       path: session.path,
       className: currentCommander()?.id ?? session.pack.accent,
       locked: false,
     });
   }
-  return locked;
+  return visible;
 }
 
 function renderObjectiveTiles() {
@@ -702,7 +732,7 @@ function renderObjectiveTiles() {
     });
   }
   if (session.level.mode === "convoy") {
-    const lit = completedBeaconSet();
+    const lit = visibleBeaconSet();
     session.level.beacons.forEach((beacon) => cellFor(beacon)?.classList.toggle("is-lit", lit.has(keyOf(beacon))));
   }
 }
@@ -713,7 +743,7 @@ function renderPath() {
   routes.forEach((route) => {
     const points = route.path.map(({ r, c }) => `${c + 0.5},${r + 0.5}`).join(" ");
     const shadow = svgNode("polyline", "route-shadow");
-    const line = svgNode("polyline", `route-line route-line--${route.className}${route.locked ? " is-locked" : ""}`);
+    const line = svgNode("polyline", `route-line route-line--${route.className}${route.locked ? " is-locked" : ""}${route.draft ? " is-draft" : ""}`);
     shadow.setAttribute("points", points);
     line.setAttribute("points", points);
     dom.routeLayer.append(shadow, line);
@@ -729,9 +759,12 @@ function renderPath() {
   }
 
   const visited = new Set(routes.flatMap((route) => route.path.map(keyOf)));
+  const locked = new Set(session.routes.flatMap((route) => route.path.map(keyOf)));
+  const draft = new Set([...session.drafts.values()].flatMap((route) => route.path.map(keyOf)));
   dom.board.querySelectorAll(".cell").forEach((cell) => {
     cell.classList.toggle("cell--visited", visited.has(cell.dataset.key));
-    cell.classList.toggle("cell--locked-route", session.routes.some((route) => route.path.some((position) => keyOf(position) === cell.dataset.key)));
+    cell.classList.toggle("cell--locked-route", locked.has(cell.dataset.key));
+    cell.classList.toggle("cell--draft-route", draft.has(cell.dataset.key));
   });
   renderObjectiveTiles();
 }
@@ -802,7 +835,7 @@ function renderRouteMeters() {
   }
   if (session.level.mode === "convoy") {
     const commander = currentCommander();
-    const lit = completedBeaconSet().size;
+    const lit = visibleBeaconSet().size;
     const securedRoutes = session.routes.length + (session.mode === "won" ? 1 : 0);
     dom.movementLabel.textContent = commander ? `${commander.name.toUpperCase()} · MOVE` : "MOVEMENT";
     dom.movementCount.textContent = commander ? `${session.party.moves} / ${movementLimit(session.level, commander, session.party)}` : "—";
@@ -824,19 +857,29 @@ function renderCommanderOrder() {
     return;
   }
   dom.commanderOrder.replaceChildren();
+  const completeCommanders = completedCommanderIds();
   session.level.commanders.forEach((commander, index) => {
-    const chip = document.createElement("div");
+    const complete = completeCommanders.has(commander.id) || (session.mode === "won" && index === session.commanderIndex);
+    const active = index === session.commanderIndex && !complete;
+    const hasDraft = session.drafts.has(commander.id);
+    const chip = document.createElement("button");
+    chip.type = "button";
     chip.className = `commander-chip commander-chip--${commander.id}`;
-    if (index === session.commanderIndex && session.mode !== "won") chip.classList.add("is-active");
-    if (index < session.commanderIndex || session.mode === "won") chip.classList.add("is-complete");
-    chip.innerHTML = `<img src="${ASSETS[commander.id]}" alt=""><span><b>${index + 1}. ${commander.name.replace(/^(Captain|Warden|Sage) /, "")}</b><small>${commander.maxMoves} move${commander.maxMoves === 1 ? "" : "s"}</small></span><i>${index < session.commanderIndex || session.mode === "won" ? "✓" : index === session.commanderIndex ? "◆" : ""}</i>`;
+    if (active) chip.classList.add("is-active");
+    if (complete) chip.classList.add("is-complete");
+    if (hasDraft) chip.classList.add("has-draft");
+    chip.disabled = complete || session.mode === "won";
+    chip.setAttribute("aria-pressed", String(active));
+    chip.setAttribute("aria-label", `${commander.name}, ${complete ? "route secured" : active ? "currently selected" : hasDraft ? "unfinished route saved" : "available"}`);
+    chip.innerHTML = `<img src="${ASSETS[commander.id]}" alt=""><span><b>${commander.name.replace(/^(Captain|Warden|Sage) /, "")}</b><small>${complete ? "route secured" : hasDraft ? "unfinished · resume" : `${commander.maxMoves} move${commander.maxMoves === 1 ? "" : "s"}`}</small></span><i>${complete ? "✓" : active ? "◆" : hasDraft ? "•" : ""}</i>`;
+    chip.addEventListener("click", () => selectCommander(index));
     dom.commanderOrder.append(chip);
   });
 }
 
 function defaultStatus() {
   if (!session.path.length) {
-    if (session.level.mode === "convoy") return `<b>${currentCommander()?.name.toUpperCase()}</b> · draw from the glowing start`;
+    if (session.level.mode === "convoy") return `<b>${currentCommander()?.name.toUpperCase()}</b> · draw here, or choose any available commander`;
     return "<b>PRESS + DRAG</b> from your commander";
   }
   const budget = session.level.mode === "campaign" ? `${session.path.length} tiles` : `${session.party.moves} movement used`;
@@ -925,7 +968,22 @@ function cellFor(position) {
   return dom.board.querySelector(`.cell[data-r="${position.r}"][data-c="${position.c}"]`);
 }
 
+function clearBlockedFeedback(resetAudio = false) {
+  session.blockedFeedback.key = "";
+  session.blockedFeedback.at = 0;
+  if (resetAudio) session.blockedFeedback.audioAt = 0;
+}
+
 function flashBlocked(position, reason) {
+  const now = globalThis.performance?.now?.() ?? Date.now();
+  const feedbackKey = `${keyOf(position)}:${reason}`;
+  if (session.blockedFeedback.key === feedbackKey && now - session.blockedFeedback.at < 750) {
+    session.blockedFeedback.at = now;
+    return;
+  }
+  session.blockedFeedback.key = feedbackKey;
+  session.blockedFeedback.at = now;
+
   const cell = cellFor(position);
   if (cell) {
     cell.classList.remove("cell--blocked");
@@ -933,7 +991,10 @@ function flashBlocked(position, reason) {
     cell.classList.add("cell--blocked");
     window.setTimeout(() => cell.classList.remove("cell--blocked"), 320);
   }
-  audio.play("blocked");
+  if (!session.blockedFeedback.audioAt || now - session.blockedFeedback.audioAt >= 400) {
+    audio.play("blocked");
+    session.blockedFeedback.audioAt = now;
+  }
   setStatus(`<b>ROUTE BLOCKED</b> ${reason}`, "error", 2200);
 }
 
@@ -950,14 +1011,36 @@ function undoStep(withSound = true) {
   if (!session.path.length || session.mode === "won") return;
   session.path.pop();
   recomputeParty();
+  clearBlockedFeedback();
   if (withSound) audio.play("undo");
-  refreshSession(null, true);
   session.mode = session.path.length ? "paused" : "idle";
+  refreshSession(null, true);
 }
 
-function lockedRouteAt(position) {
+function pathIndexAt(position) {
+  return session.path.findIndex((step) => samePosition(step, position));
+}
+
+function rewindPathTo(position, withSound = true) {
+  const index = pathIndexAt(position);
+  if (index < 0 || index === session.path.length - 1 || session.mode === "won") return false;
+  session.path = session.path.slice(0, index + 1);
+  recomputeParty();
+  clearBlockedFeedback();
+  session.mode = session.drawing ? "drawing" : "paused";
+  const now = globalThis.performance?.now?.() ?? Date.now();
+  if (withSound && now - session.lastUndoAt >= 110) {
+    audio.play("undo");
+    session.lastUndoAt = now;
+  }
+  refreshSession(null, true);
+  return true;
+}
+
+function foreignRouteAt(position) {
   const positionKey = keyOf(position);
-  return session.routes.some((route) => route.path.some((step) => keyOf(step) === positionKey));
+  if (session.routes.some((route) => route.path.some((step) => keyOf(step) === positionKey))) return true;
+  return [...session.drafts.values()].some((draft) => draft.path.some((step) => keyOf(step) === positionKey));
 }
 
 function reservedCommanderTile(position) {
@@ -966,31 +1049,77 @@ function reservedCommanderTile(position) {
   return ["commanderStart", "commanderGoal"].includes(def?.type) && def.commander !== currentCommander()?.id;
 }
 
-function lockCommanderRoute() {
+function saveActiveDraft() {
+  if (session.level.mode !== "convoy") return;
+  const commander = currentCommander();
+  if (!commander || completedCommanderIds().has(commander.id)) return;
+  if (!session.path.length) {
+    session.drafts.delete(commander.id);
+    return;
+  }
+  session.drafts.set(commander.id, {
+    path: session.path.map((position) => ({ ...position })),
+    state: createPartyState(session.party),
+  });
+}
+
+function selectCommander(index, options = {}) {
+  if (session.level.mode !== "convoy" || session.mode === "won") return false;
+  const commander = session.level.commanders[index];
+  if (!commander || completedCommanderIds().has(commander.id)) return false;
+  if (index === session.commanderIndex) return true;
+
+  if (options.saveCurrent !== false) saveActiveDraft();
+  if (session.pointerId !== null) {
+    try { dom.boardFrame.releasePointerCapture?.(session.pointerId); } catch { /* Pointer capture may already be gone. */ }
+  }
+  session.drawing = false;
+  session.pointerId = null;
+  session.commanderIndex = index;
+  const draft = session.drafts.get(commander.id);
+  session.drafts.delete(commander.id);
+  session.path = draft?.path.map((position) => ({ ...position })) ?? [];
+  session.party = draft ? createPartyState(draft.state) : createPartyState(commander.initial);
+  session.mode = session.path.length ? "paused" : "idle";
+  clearBlockedFeedback();
+  renderBoard();
+  refreshSession(null, true);
+  if (!options.silent) {
+    audio.play("switch");
+    setStatus(`<b>${commander.name.toUpperCase()} SELECTED</b> ${draft ? "Continue the saved trail from its glowing head." : "Draw from the glowing start."}`, "success", 1600);
+  }
+  return true;
+}
+
+function commanderStartIndexAt(position) {
+  if (session.level.mode !== "convoy") return -1;
+  return session.level.commanders.findIndex((commander) => samePosition(commander.start, position));
+}
+
+function secureCommanderRoute() {
   const commander = currentCommander();
   session.routes.push({
     commanderId: commander.id,
     path: session.path.map((position) => ({ ...position })),
     state: createPartyState(session.party),
   });
-  session.commanderIndex += 1;
+  session.drafts.delete(commander.id);
+  const complete = completedCommanderIds();
+  const nextIndex = session.level.commanders.findIndex((candidate) => !complete.has(candidate.id));
   session.path = [];
-  session.party = createPartyState(currentCommander()?.initial);
-  session.mode = "idle";
+  session.party = createPartyState();
+  selectCommander(nextIndex, { saveCurrent: false, silent: true });
   audio.play("switch");
-  renderBoard();
-  refreshSession(null, true);
-  setStatus(`<b>${commander.name.toUpperCase()} SECURED!</b> ${currentCommander().name} now draws the next locked route.`, "success", 2400);
+  setStatus(`<b>${commander.name.toUpperCase()} SECURED!</b> Choose any remaining commander; unfinished trails stay saved.`, "success", 2400);
 }
 
 function attemptAdjacent(position) {
   const head = session.path.at(-1);
-  if (!head || samePosition(head, position)) return true;
+  if (!head || samePosition(head, position)) return "noop";
 
-  const previous = session.path.at(-2);
-  if (previous && samePosition(previous, position)) {
-    undoStep();
-    return true;
+  if (pathIndexAt(position) >= 0) {
+    rewindPathTo(position);
+    return "rewound";
   }
 
   if (!isAdjacent(head, position)) return false;
@@ -999,12 +1128,8 @@ function attemptAdjacent(position) {
     flashBlocked(position, `The marching arrow requires the next step ${direction === "U" ? "north" : direction === "R" ? "east" : direction === "D" ? "south" : "west"}.`);
     return false;
   }
-  if (session.path.some((step) => samePosition(step, position))) {
-    flashBlocked(position, "The trail cannot cross itself. Pull back one square instead.");
-    return false;
-  }
-  if (lockedRouteAt(position)) {
-    flashBlocked(position, "A locked commander route already occupies that square.");
+  if (foreignRouteAt(position)) {
+    flashBlocked(position, "Another commander's saved route already occupies that square.");
     return false;
   }
   if (reservedCommanderTile(position)) {
@@ -1019,9 +1144,9 @@ function attemptAdjacent(position) {
   }
 
   const isActiveGoal = samePosition(position, activeGoal());
-  const isFinalCommander = session.level.mode === "convoy" && session.commanderIndex === session.level.commanders.length - 1;
+  const isFinalCommander = session.level.mode === "convoy" && session.routes.length === session.level.commanders.length - 1;
   if (isActiveGoal && isFinalCommander) {
-    const finalBeacons = completedBeaconSet(false);
+    const finalBeacons = securedBeaconSet();
     transition.state.beacons.forEach((beacon) => finalBeacons.add(beacon));
     if (!beaconsComplete(session.level, finalBeacons)) {
       flashBlocked(position, "Light every rally beacon before the final commander reaches their standard.");
@@ -1032,21 +1157,27 @@ function attemptAdjacent(position) {
   session.path.push(position);
   session.party = transition.state;
   session.mode = "drawing";
+  clearBlockedFeedback();
   markFresh(position);
   const cue = audioCue(transition.event);
   audio.play(cue, session.path.length);
   refreshSession(transition.event, true);
 
   if (isActiveGoal) {
-    if (session.level.mode === "convoy" && !isFinalCommander) lockCommanderRoute();
+    if (session.level.mode === "convoy" && !isFinalCommander) secureCommanderRoute();
     else finishLevel();
   }
-  return true;
+  return "advanced";
 }
 
 function attemptToward(target) {
   let head = session.path.at(-1);
   if (!head || samePosition(head, target)) return;
+
+  if (pathIndexAt(target) >= 0) {
+    rewindPathTo(target);
+    return;
+  }
 
   if (isAdjacent(head, target)) {
     attemptAdjacent(target);
@@ -1057,14 +1188,14 @@ function attemptToward(target) {
     const direction = Math.sign(target.c - head.c);
     while (session.mode !== "won" && head.c !== target.c) {
       const next = { r: head.r, c: head.c + direction };
-      if (!attemptAdjacent(next)) break;
+      if (attemptAdjacent(next) !== "advanced") break;
       head = session.path.at(-1);
     }
   } else if (head.c === target.c) {
     const direction = Math.sign(target.r - head.r);
     while (session.mode !== "won" && head.r !== target.r) {
       const next = { r: head.r + direction, c: head.c };
-      if (!attemptAdjacent(next)) break;
+      if (attemptAdjacent(next) !== "advanced") break;
       head = session.path.at(-1);
     }
   }
@@ -1079,6 +1210,7 @@ function beginPath() {
   });
   session.party = startTransition.state;
   session.mode = "drawing";
+  clearBlockedFeedback();
   audio.play("step", 0);
   refreshSession(null, true);
 }
@@ -1091,6 +1223,19 @@ function handlePointerDown(event) {
   const position = positionFromCell(cell);
   if (!position) return;
 
+  const commanderStartIndex = commanderStartIndexAt(position);
+  if (commanderStartIndex >= 0 && commanderStartIndex !== session.commanderIndex) {
+    const commander = session.level.commanders[commanderStartIndex];
+    if (!selectCommander(commanderStartIndex)) {
+      flashBlocked(position, `${commander.name}'s route is already secured.`);
+      return;
+    }
+    if (session.path.length) {
+      event.preventDefault();
+      return;
+    }
+  }
+
   if (!session.path.length) {
     if (!samePosition(position, activeStart())) {
       flashBlocked(position, session.level.mode === "convoy" ? `Begin on ${currentCommander().name}, the glowing active commander.` : "Begin on the commander.");
@@ -1099,16 +1244,22 @@ function handlePointerDown(event) {
     beginPath();
   } else {
     const head = session.path.at(-1);
-    if (!samePosition(position, head) && !isAdjacent(position, head)) {
+    const earlierPathTile = pathIndexAt(position) >= 0;
+    if (!samePosition(position, head) && !isAdjacent(position, head) && !earlierPathTile) {
       flashBlocked(position, "Continue from the glowing route head.");
       return;
     }
-    if (!samePosition(position, head)) attemptAdjacent(position);
+    if (!samePosition(position, head)) {
+      if (earlierPathTile) rewindPathTo(position);
+      else attemptAdjacent(position);
+    }
   }
 
   session.drawing = session.mode !== "won" && session.path.length > 0;
   session.pointerId = event.pointerId;
-  if (session.drawing) dom.boardFrame.setPointerCapture?.(event.pointerId);
+  if (session.drawing) {
+    try { dom.boardFrame.setPointerCapture?.(event.pointerId); } catch { /* Synthetic and older pointer sources may not support capture. */ }
+  }
   event.preventDefault();
 }
 
@@ -1125,6 +1276,7 @@ function endPointer(event) {
   if (event.pointerId !== session.pointerId) return;
   session.drawing = false;
   session.pointerId = null;
+  clearBlockedFeedback();
   if (session.mode === "drawing") session.mode = "paused";
 }
 
@@ -1188,21 +1340,28 @@ function createConfetti() {
 function finishLevel() {
   session.mode = "won";
   session.drawing = false;
-  session.completed.add(currentLevelKey());
-  persistCompleted();
-  renderLevelList();
+  const isPlaytest = Boolean(session.playtest);
+  if (!isPlaytest) {
+    session.completed.add(currentLevelKey());
+    persistCompleted();
+    renderLevelList();
+  }
   renderRouteMeters();
   renderCommanderOrder();
   dom.undo.disabled = true;
   dom.party.classList.add("is-winning");
   createConfetti();
   audio.play("win");
-  setStatus("<b>ROUTE SECURED!</b> Your company reached the royal banner.", "success");
+  setStatus(isPlaytest
+    ? "<b>PLAYTEST CLEAR!</b> This draft can be completed under the real game rules."
+    : "<b>ROUTE SECURED!</b> Your company reached the royal banner.", "success");
 
   const isPackFinale = session.levelIndex === session.pack.levels.length - 1;
   const isGameFinale = isPackFinale && session.packIndex === PACKS.length - 1;
-  dom.victoryTitle.textContent = isGameFinale ? "The company rises again!" : isPackFinale ? `${session.pack.shortName} complete!` : "Company assembled!";
-  dom.victoryCopy.textContent = isGameFinale
+  dom.victoryTitle.textContent = isPlaytest ? "Playtest complete!" : isGameFinale ? "The company rises again!" : isPackFinale ? `${session.pack.shortName} complete!` : "Company assembled!";
+  dom.victoryCopy.textContent = isPlaytest
+    ? "The route works in play. Return to the workshop to refine, analyze, or copy it."
+    : isGameFinale
     ? "The lone commander turned every hard choice into one final, unstoppable company."
     : isPackFinale
       ? `${session.pack.name} is secure. A new campaign is ready.`
@@ -1210,7 +1369,9 @@ function finishLevel() {
   const totalTiles = session.routes.reduce((sum, route) => sum + route.path.length, 0) + session.path.length;
   dom.victorySteps.textContent = String(totalTiles);
   dom.victoryRank.textContent = session.level.difficulty >= 9 ? "★★★" : session.level.difficulty >= 6 ? "★★" : "★";
-  dom.next.innerHTML = isGameFinale
+  dom.next.innerHTML = isPlaytest
+    ? "BACK TO DESIGNER <span>▦</span>"
+    : isGameFinale
     ? "FIRST PACK <span>↻</span>"
     : isPackFinale
       ? "NEXT PACK <span>→</span>"
@@ -1232,14 +1393,17 @@ function resetLevel() {
   clearTimers();
   session.path = [];
   session.routes = [];
+  session.drafts.clear();
   session.commanderIndex = 0;
   session.party = createPartyState(currentCommander()?.initial);
   session.mode = "idle";
   session.drawing = false;
   session.pointerId = null;
+  clearBlockedFeedback(true);
   dom.party.classList.remove("is-winning", "is-stepping");
   dom.confetti.replaceChildren();
   if (dom.victoryDialog.open) dom.victoryDialog.close();
+  renderBoard();
   refreshSession();
 }
 
@@ -1250,11 +1414,13 @@ function loadLevel(index) {
   session.level = levels[session.levelIndex];
   session.path = [];
   session.routes = [];
+  session.drafts.clear();
   session.commanderIndex = 0;
   session.party = createPartyState(currentCommander()?.initial);
   session.mode = "idle";
   session.drawing = false;
   session.pointerId = null;
+  clearBlockedFeedback(true);
   dom.party.classList.remove("is-winning", "is-stepping");
   dom.confetti.replaceChildren();
   if (dom.victoryDialog.open) dom.victoryDialog.close();
@@ -1268,7 +1434,71 @@ function loadLevel(index) {
   }
 }
 
+function startDesignerPlaytest(level, context) {
+  const returnTo = session.playtest?.returnTo ?? {
+    packIndex: Math.max(0, session.packIndex),
+    levelIndex: session.levelIndex,
+  };
+  session.playtest = {
+    designId: context.designId,
+    returnTo,
+  };
+  session.packIndex = -1;
+  session.pack = {
+    id: "designer-playtest",
+    number: "✦",
+    name: "Level Workshop",
+    shortName: "Workshop",
+    eyebrow: "LIVE PLAYTEST",
+    description: "This browser-saved draft is running in the real game rules. Return to the workshop to keep painting.",
+    accent: "gold",
+    levels: [level],
+  };
+  session.levelIndex = 0;
+  session.level = level;
+  clearTimers();
+  session.path = [];
+  session.routes = [];
+  session.drafts.clear();
+  session.commanderIndex = 0;
+  session.party = createPartyState(currentCommander()?.initial);
+  session.mode = "idle";
+  session.drawing = false;
+  session.pointerId = null;
+  clearBlockedFeedback(true);
+  dom.backToDesigner.hidden = false;
+  dom.party.classList.remove("is-winning", "is-stepping");
+  dom.confetti.replaceChildren();
+  if (dom.victoryDialog.open) dom.victoryDialog.close();
+  audio.setTheme(0);
+  renderMetadata();
+  renderBoard();
+  renderLevelList();
+  refreshSession();
+  dom.board.focus({ preventScroll: true });
+  dom.missionPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function returnToDesigner() {
+  if (!session.playtest) {
+    designerController?.open();
+    return;
+  }
+  const { designId, returnTo } = session.playtest;
+  session.playtest = null;
+  dom.backToDesigner.hidden = true;
+  session.packIndex = returnTo.packIndex;
+  session.pack = PACKS[session.packIndex];
+  audio.setTheme(session.packIndex);
+  loadLevel(returnTo.levelIndex);
+  designerController?.open(designId);
+}
+
 function loadPack(index) {
+  if (session.playtest) {
+    session.playtest = null;
+    dom.backToDesigner.hidden = true;
+  }
   session.packIndex = (index + PACKS.length) % PACKS.length;
   session.pack = PACKS[session.packIndex];
   audio.setTheme(session.packIndex);
@@ -1353,7 +1583,10 @@ dom.creditsDialog.addEventListener("click", (event) => {
   if (event.target === dom.creditsDialog) dom.creditsDialog.close();
 });
 dom.replay.addEventListener("click", resetLevel);
-dom.next.addEventListener("click", loadNextMission);
+dom.next.addEventListener("click", () => session.playtest ? returnToDesigner() : loadNextMission());
+dom.backToDesigner.addEventListener("click", returnToDesigner);
+
+designerController = createLevelDesigner({ onPlaytest: startDesignerPlaytest });
 
 updateSoundButton();
 audio.setTheme(0);

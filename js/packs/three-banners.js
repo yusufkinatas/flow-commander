@@ -35,7 +35,7 @@ export const THREE_BANNERS_RAW = [
     name: "Three Duties",
     difficulty: 5.5,
     mechanic: "Three specialist commanders",
-    briefing: "Add Sage Cinder to calm the dragon road. Locked trails become walls for the commanders who follow.",
+    briefing: "Add Sage Cinder to calm the dragon road. Every saved trail becomes a wall for the other commanders.",
     tip: "Alder brings soldiers, Bramble brings a builder, and Cinder brings a mage.",
     commanders: THREE_COMMANDERS,
     map: [

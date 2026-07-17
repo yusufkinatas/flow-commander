@@ -188,7 +188,7 @@ export const PACKS = Object.freeze([
     name: "The Three Banners",
     shortName: "Three Banners",
     eyebrow: "MULTI-COMMAND",
-    description: "Lock specialist routes one by one. Trails cannot cross, and every beacon must be claimed.",
+    description: "Choose any specialist whenever you like. Saved trails cannot cross, and every beacon must be claimed.",
     accent: "violet",
     levels: THREE_BANNER_LEVELS,
   },

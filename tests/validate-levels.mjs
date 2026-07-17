@@ -8,6 +8,7 @@ import {
   parseLevel,
   simulatePath,
 } from "../js/engine.js";
+import { exportableLevel, normalizeDesign } from "../js/designer.js";
 
 assert.deepEqual(PACKS.map((pack) => pack.levels.length), [10, 6, 5, 3], "The four packs must contain 10, 6, 5, and 3 levels.");
 
@@ -30,9 +31,12 @@ for (const pack of PACKS) {
     if (level.mode === "convoy") {
       const occupied = new Set();
       const litBeacons = new Set();
-      solution.routes.forEach((route, index) => {
-        const commander = level.commanders[index];
-        assert.equal(route.commanderId, commander.id, `${pack.name} level ${level.id} uses the wrong commander order.`);
+      const expectedCommanderIds = new Set(level.commanders.map((commander) => commander.id));
+      const routedCommanderIds = new Set(solution.routes.map((route) => route.commanderId));
+      assert.deepEqual(routedCommanderIds, expectedCommanderIds, `${pack.name} level ${level.id} must route every commander exactly once.`);
+      solution.routes.forEach((route) => {
+        const commander = level.commanders.find((candidate) => candidate.id === route.commanderId);
+        assert.ok(commander, `${pack.name} level ${level.id} returned an unknown commander route.`);
         const result = simulatePath(level, route.path, { commander });
         assert.equal(result.ok, true, `${pack.name} level ${level.id} has an illegal ${commander.name} route.`);
         assert.equal(result.won, true, `${commander.name} does not reach the matching standard.`);
@@ -108,5 +112,36 @@ for (const level of PACKS[3].levels) {
   assert.match(level.map.join(""), /f/, `The Second Wind level ${level.id} must use a healer.`);
 }
 
+// Convoy route geometry is independent of which commander the player selects first.
+const convoySample = PACKS[2].levels[0];
+const reversedConvoy = { ...convoySample, commanders: [...convoySample.commanders].reverse() };
+const reversedAnalysis = analyzeLevel(reversedConvoy, { solutionLimit: 2, nodeLimit: 50_000 });
+assert.equal(reversedAnalysis.unique, true, "Selecting convoy commanders in another order must preserve the unique route set.");
+const normalizeRoutes = (solution) => solution.routes
+  .map((route) => `${route.commanderId}:${directionsFromPath(route.path)}`)
+  .sort();
+assert.deepEqual(
+  normalizeRoutes(reversedAnalysis.solutions[0]),
+  normalizeRoutes(analyzeLevel(convoySample, { solutionLimit: 2, nodeLimit: 50_000 }).solutions[0]),
+  "Convoy execution order must not change the solution geometry.",
+);
+
+// Browser-workshop exports use the exact same parser and solver as authored levels.
+const workshopDesign = normalizeDesign({
+  id: "test-design",
+  name: "Workshop Muster",
+  difficulty: "Gentle",
+  mechanic: "Recruit → rally",
+  briefing: "Test the exported draft.",
+  tip: "Keep marching east.",
+  width: 9,
+  height: 5,
+  map: ["#########", "#########", "#S.r.g.G#", "#########", "#########"],
+});
+const workshopExport = exportableLevel(workshopDesign);
+assert.equal(workshopExport.difficulty, 2, "Workshop difficulty labels must export as numeric game difficulty.");
+const workshopAnalysis = analyzeLevel(parseLevel(workshopExport), { solutionLimit: 2, nodeLimit: 10_000 });
+assert.equal(workshopAnalysis.unique, true, "A valid workshop export must run through the production uniqueness analyzer.");
+
 console.table(report);
-console.log("✓ 24 levels exhaustively validated · exactly 1 solution each · measurable Pack 2–4 complexity ramps · all mechanics present");
+console.log("✓ 24 levels exhaustively validated · free commander order proven · workshop export verified · all mechanics present");

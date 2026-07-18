@@ -17,6 +17,15 @@ The Pack 5 artifacts are useful worked examples:
 - [Automated level report](docs/PACK5_LEVEL_REPORT.md)
 - [Campaign validator](tests/validate-pack5.mjs)
 
+Pack 6 is the worked example for a three-mechanic campaign with parallel designers and independent sub-agent review:
+
+- [Applied campaign research](docs/PACK6_CAMPAIGN_RESEARCH.md)
+- [Three-mechanic candidate roster](docs/PACK6_MECHANIC_ROSTER.md)
+- [Frozen campaign specification and ownership ledger](docs/PACK6_CAMPAIGN_SPEC.md)
+- [Designer/reviewer and revision record](docs/PACK6_REVIEW_RECORD.md)
+- [Automated campaign report](docs/PACK6_LEVEL_REPORT.md)
+- [Mechanic contract validator](tests/validate-pack6-mechanics.mjs) and [campaign validator](tests/validate-pack6.mjs)
+
 ## Non-negotiable outcomes
 
 Before production begins, agree on these outcomes:

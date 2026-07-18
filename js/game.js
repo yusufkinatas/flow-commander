@@ -108,10 +108,12 @@ const dom = {
   mageCount: document.querySelector("#mageCount"),
   builderCount: document.querySelector("#builderCount"),
   healerCount: document.querySelector("#healerCount"),
+  aegisCount: document.querySelector("#aegisCount"),
   soldierCard: document.querySelector("#soldierCard"),
   mageCard: document.querySelector("#mageCard"),
   builderCard: document.querySelector("#builderCard"),
   healerCard: document.querySelector("#healerCard"),
+  aegisCard: document.querySelector("#aegisCard"),
   sealMeter: document.querySelector("#sealMeter"),
   sunSeal: document.querySelector("#sunSeal"),
   moonSeal: document.querySelector("#moonSeal"),
@@ -449,6 +451,22 @@ class Soundboard {
         this.tone(392, 0.11, "triangle", 0.075, 0.06);
         this.tone(784, 0.14, "sine", 0.055, 0.12);
         break;
+      case "stride":
+        this.tone(262, 0.08, "square", 0.06);
+        this.tone(392, 0.11, "triangle", 0.07, 0.07);
+        break;
+      case "pivot":
+        this.tone(392, 0.08, "triangle", 0.065);
+        this.tone(294, 0.12, "square", 0.06, 0.07);
+        break;
+      case "aegis":
+        this.sample("soldierPickup", step, { volume: 0.25, rate: 0.88 });
+        [220, 330, 440].forEach((note, index) => this.tone(note, 0.13, "triangle", 0.06, index * 0.045));
+        break;
+      case "aegisGuard":
+        this.sample("soldierImpact", step, { volume: 0.3, rate: 0.76 });
+        this.tone(150, 0.18, "square", 0.08, 0, 310);
+        break;
       case "blocked":
         this.tone(92, 0.12, "square", 0.075);
         break;
@@ -693,6 +711,25 @@ function renderTileContents(cell, tileCode, r, c) {
       cell.append(textNode("tile-badge tile-badge--healer", "↺"));
       cell.append(textNode("tile-label", "HEALER"));
       break;
+    case "stride":
+      cell.append(
+        textNode("maneuver-marker maneuver-marker--stride", "↕↔"),
+        textNode("tile-label", "STRAIGHT THROUGH"),
+      );
+      break;
+    case "pivot":
+      cell.append(
+        textNode("maneuver-marker maneuver-marker--pivot", "↱↰"),
+        textNode("tile-label", "RIGHT-ANGLE TURN"),
+      );
+      break;
+    case "aegis":
+      cell.append(
+        textNode("aegis-symbol", "◆"),
+        textNode("tile-badge tile-badge--aegis", "+1"),
+        textNode("tile-label", "AEGIS"),
+      );
+      break;
     case "river": {
       const water = document.createElement("span");
       water.className = "river-water";
@@ -864,8 +901,52 @@ function levelUsesFormation(level = session.level) {
   return level.map.some((row) => /[123]/.test(row));
 }
 
+function grandManeuverDisclosure(level = session.level) {
+  const rows = level?.map ?? level?.rows ?? [];
+  const mapText = rows.map((row) => Array.isArray(row) ? row.join("") : row).join("");
+  return {
+    stride: mapText.includes("i"),
+    pivot: mapText.includes("p"),
+    aegis: mapText.includes("a"),
+  };
+}
+
+function levelUsesGrandManeuver(level = session.level) {
+  return Object.values(grandManeuverDisclosure(level)).some(Boolean);
+}
+
+function grandManeuverRules(disclosure) {
+  if (!Object.values(disclosure).some(Boolean)) return [];
+  const rules = [
+    ["Plan one clean route", "Move orthogonally, rewind freely, and review the complete trail before execution."],
+  ];
+  if (disclosure.stride || disclosure.pivot) {
+    rules.push(["Resolve markers on departure", "Entering a marker is provisional; its rule is checked when you choose the next square."]);
+  }
+  if (disclosure.stride) {
+    rules.push(["Stride stays straight", "Leave a Stride Marker in the same cardinal direction used to enter it."]);
+  }
+  if (disclosure.pivot) {
+    rules.push(["Pivot makes a corner", "Leave a Pivot Marker with a right-angle turn from the entering edge."]);
+  }
+  if (disclosure.aegis) {
+    rules.push(["Guard a legal battle", "An Aegis is spent only after the ready line is already strong enough, preserving every soldier."]);
+  }
+  return rules;
+}
+
+function grandManeuverLegend(disclosure) {
+  return [
+    ...(disclosure.stride ? [["stride", "Stride"]] : []),
+    ...(disclosure.pivot ? [["pivot", "Pivot"]] : []),
+    ...(disclosure.aegis ? [["aegis", "Aegis"]] : []),
+  ];
+}
+
 function renderRules() {
   const formationRules = session.pack.id === "formation-muster" || levelUsesFormation();
+  const maneuverDisclosure = grandManeuverDisclosure();
+  const maneuverRules = grandManeuverRules(maneuverDisclosure);
   const rules = formationRules
     ? [
         ["Plan one clean route", "Move orthogonally, rewind freely, and review the complete trail before execution."],
@@ -873,6 +954,8 @@ function renderRules() {
         ["Ready means ready", "Only the READY soldier number counts; every other companion is ignored."],
         ["Inspection costs nothing", "Passing a checkpoint checks the line but does not consume anyone."],
       ]
+    : maneuverRules.length
+    ? maneuverRules
     : session.pack.id === "second-wind"
     ? [
         ["Build the company en route", "Every mission begins with the lone commander and no ready units."],
@@ -904,6 +987,8 @@ function renderRules() {
 
   const legend = formationRules
     ? [["formation", "Exact formation"], ["recruit", "Recruit"], ["danger", "Danger"]]
+    : maneuverRules.length
+    ? grandManeuverLegend(maneuverDisclosure)
     : session.pack.id === "second-wind"
     ? [["recruit", "Recruit"], ["healer", "Healer"], ["danger", "Danger"]]
     : session.level.mode === "relief"
@@ -998,12 +1083,25 @@ function renderObjectiveTiles() {
   }
 
   const plannedKeys = new Set(allVisibleRoutes().flatMap((route) => route.path.map(keyOf)));
+  const plannedHeadKey = planning && session.path.length ? keyOf(session.path.at(-1)) : null;
+  const plannedProtectedBattles = new Set(
+    planning
+      ? session.party.events
+        .filter((event) => event.type === "goblin" && event.protected)
+        .map((event) => keyOf(event.position))
+      : [],
+  );
   dom.board.querySelectorAll(".cell").forEach((cell) => {
     const tile = TILE_DEFS[tileAt(positionFromCell(cell))];
     const planned = planning && plannedKeys.has(cell.dataset.key);
+    const marker = ["stride", "pivot"].includes(tile?.type);
+    const pendingMarker = planned && marker && cell.dataset.key === plannedHeadKey;
     cell.classList.toggle("is-planned-bridge", planned && tile?.type === "river");
     cell.classList.toggle("is-planned-open", planned && tile?.type === "gate");
     cell.classList.toggle("is-planned-formation-open", planned && tile?.type === "formation");
+    cell.classList.toggle("is-planned-marker-pending", pendingMarker);
+    cell.classList.toggle("is-planned-marker-resolved", planned && marker && !pendingMarker);
+    cell.classList.toggle("is-planned-protected", plannedProtectedBattles.has(cell.dataset.key));
   });
 }
 
@@ -1106,9 +1204,11 @@ function renderPlanningGhost() {
   fillPartyToken(dom.planningGhost, session.party, currentCommander()?.id);
 }
 
-function bumpRoster(type) {
+function bumpRoster(event) {
+  const type = event?.type;
   let card = null;
-  if (type === "recruit" || type === "goblin") card = dom.soldierCard;
+  if (type === "recruit" || (type === "goblin" && !event.protected)) card = dom.soldierCard;
+  if (type === "aegis" || (type === "goblin" && event.protected)) card = dom.aegisCard;
   if (type === "mage" || type === "dragon") card = dom.mageCard;
   if (type === "builder" || type === "river") card = dom.builderCard;
   if (type === "healer") card = dom.healerCard;
@@ -1135,17 +1235,24 @@ function renderRoster(event = null) {
   dom.mageCount.textContent = String(session.party.mages);
   dom.builderCount.textContent = String(session.party.builders);
   dom.healerCount.textContent = String(session.party.healers);
+  dom.aegisCount.textContent = String(session.party.aegis);
   dom.soldierCard.classList.toggle("is-active", session.party.soldiers > 0);
   dom.mageCard.classList.toggle("is-active", session.party.mages > 0);
   dom.builderCard.classList.toggle("is-active", session.party.builders > 0);
   dom.healerCard.classList.toggle("is-active", session.party.healers > 0);
+  dom.aegisCard.classList.toggle("is-active", session.party.aegis > 0);
+  dom.aegisCard.hidden = !(grandManeuverDisclosure().aegis || session.party.aegis > 0);
+  dom.aegisCard.setAttribute(
+    "aria-label",
+    `${session.party.aegis} Aegis charge${session.party.aegis === 1 ? "" : "s"} ready`,
+  );
   dom.sunSeal.classList.toggle("is-open", session.party.switches.has("sun"));
   dom.moonSeal.classList.toggle("is-open", session.party.switches.has("moon"));
   dom.sunSeal.setAttribute("aria-label", `Sun seal ${session.party.switches.has("sun") ? "open" : "closed"}`);
   dom.moonSeal.setAttribute("aria-label", `Moon seal ${session.party.switches.has("moon") ? "open" : "closed"}`);
   renderRouteMeters();
   renderCommanderOrder();
-  if (event) bumpRoster(event.type);
+  if (event) bumpRoster(event);
 }
 
 function renderRouteMeters() {
@@ -1233,6 +1340,9 @@ function defaultStatus() {
     if (session.level.mode === "convoy") return `<b>${currentCommander()?.name.toUpperCase()}</b> · draw here, or choose any available commander`;
     return "<b>PRESS + DRAG</b> from your commander";
   }
+  const headTile = TILE_DEFS[tileAt(session.path.at(-1))];
+  if (headTile?.type === "stride") return "<b>STRIDE PENDING</b> Leave this marker straight ahead to validate it.";
+  if (headTile?.type === "pivot") return "<b>PIVOT PENDING</b> Leave this marker with a right-angle turn to validate it.";
   const budget = session.level.mode === "campaign" ? `${session.path.length} tiles` : `${session.party.moves} movement used`;
   return `<b>KEEP DRAWING</b> from the glowing head · ${budget}`;
 }
@@ -1253,6 +1363,7 @@ function eventStatus(event) {
     case "recruit": return event.amount === 1 ? "<b>SOLDIER RALLIED!</b> The company grows." : "<b>SQUAD RALLIED!</b> Two soldiers join the line.";
     case "goblin": {
       const enemy = event.cost === 1 ? "GOBLIN" : event.cost === 2 ? "ORC" : "OGRE";
+      if (event.protected) return `<b>AEGIS HELD!</b> The ${enemy.toLowerCase()} falls while every ready soldier stays in line.`;
       return `<b>${enemy} DEFEATED!</b> ${event.cost} soldier${event.cost === 1 ? " rests" : "s rest"} here.`;
     }
     case "mage": return "<b>MAGE RALLIED!</b> One dragon can now be enchanted.";
@@ -1262,6 +1373,9 @@ function eventStatus(event) {
     case "healer": return event.restored
       ? `<b>SECOND WIND!</b> The healer returns ${event.restored} tired soldier${event.restored === 1 ? "" : "s"} to duty.`
       : "<b>HEALER RALLIED!</b> No one is tired yet — timing matters.";
+    case "aegis": return "<b>AEGIS RALLIED!</b> The next legal soldier battle will spend this protection.";
+    case "stride": return "<b>STRIDE COMPLETE!</b> The route continued straight through the marker.";
+    case "pivot": return "<b>PIVOT COMPLETE!</b> The route made a right-angle turn through the marker.";
     case "switch": return `<b>${event.channel.toUpperCase()} SWITCH LIT!</b> Its matching gate is open.`;
     case "gate": return `<b>${event.channel.toUpperCase()} GATE OPEN!</b> March through.`;
     case "formation": return `<b>FORMATION APPROVED!</b> Exactly ${event.required} ready soldier${event.required === 1 ? " stands" : "s stand"} in the line.`;
@@ -1282,7 +1396,9 @@ function planningEventStatus(events = []) {
   if (!event) return null;
   switch (event.type) {
     case "recruit": return `<b>PLANNED RALLY</b> ${event.amount} ready soldier${event.amount === 1 ? " joins" : "s join"} the preview company.`;
-    case "goblin": return `<b>PLANNED COMBAT</b> ${event.cost} ready soldier${event.cost === 1 ? " becomes" : "s become"} tired here.`;
+    case "goblin": return event.protected
+      ? "<b>PLANNED AEGIS GUARD</b> One Aegis will be spent and no ready soldier will become tired."
+      : `<b>PLANNED COMBAT</b> ${event.cost} ready soldier${event.cost === 1 ? " becomes" : "s become"} tired here.`;
     case "mage": return "<b>PLANNED RALLY</b> The preview company gains one mage.";
     case "dragon": return "<b>PLANNED SPELL</b> One mage is reserved for this dragon.";
     case "builder": return "<b>PLANNED RALLY</b> The preview company gains one builder.";
@@ -1290,6 +1406,9 @@ function planningEventStatus(events = []) {
     case "healer": return event.restored
       ? `<b>PLANNED SECOND WIND</b> ${event.restored} tired soldier${event.restored === 1 ? " returns" : "s return"} to ready duty.`
       : "<b>PLANNED HEALER</b> No tired soldiers would be restored here.";
+    case "aegis": return "<b>PLANNED AEGIS</b> One visible protection is added to the preview company.";
+    case "stride": return "<b>PLANNED STRIDE</b> This departure continues in the entering direction.";
+    case "pivot": return "<b>PLANNED PIVOT</b> This departure forms a right angle with the entering edge.";
     case "switch": return `<b>PLANNED SWITCH</b> The ${event.channel} seal will remain open.`;
     case "gate": return `<b>PLANNED GATE</b> The ${event.channel} seal is available before this step.`;
     case "formation": return `<b>PLANNED INSPECTION</b> The preview line has exactly ${event.required} ready soldier${event.required === 1 ? "" : "s"}.`;
@@ -1303,7 +1422,7 @@ function planningEventStatus(events = []) {
 function audioCue(event) {
   if (!event) return "step";
   if (event.type === "recruit") return "recruit";
-  if (event.type === "goblin") return "goblin";
+  if (event.type === "goblin") return event.protected ? "aegisGuard" : "goblin";
   if (event.type === "mage") return "mage";
   if (event.type === "dragon") return "dragon";
   if (event.type === "builder") return "builder";
@@ -1312,6 +1431,7 @@ function audioCue(event) {
   if (event.type === "switch") return "switch";
   if (event.type === "gate") return "gate";
   if (event.type === "formation") return "formation";
+  if (["stride", "pivot", "aegis"].includes(event.type)) return event.type;
   if (["delivery", "beacon", "mud", "supply", "current"].includes(event.type)) return event.type;
   return "step";
 }
@@ -1741,13 +1861,19 @@ function handleKeyboard(event) {
 function executionEventLabel(event) {
   if (!event) return "MARCHING";
   if (event.type === "recruit") return "SOLDIER PICKUP";
-  if (event.type === "goblin") return event.cost === 1 ? "GOBLIN COMBAT" : event.cost === 2 ? "ORC COMBAT" : "OGRE COMBAT";
+  if (event.type === "goblin") {
+    if (event.protected) return "AEGIS GUARD";
+    return event.cost === 1 ? "GOBLIN COMBAT" : event.cost === 2 ? "ORC COMBAT" : "OGRE COMBAT";
+  }
   if (event.type === "mage") return "MAGE PICKUP";
   if (event.type === "dragon") return "FIREBALL";
   if (event.type === "builder") return "BUILDER PICKUP";
   if (event.type === "river") return "BRIDGE BUILD";
   if (event.type === "healer") return event.restored ? "HEALING" : "HEALER PICKUP";
   if (event.type === "formation") return `FORMATION =${event.required}`;
+  if (event.type === "stride") return "STRIDE DEPARTURE";
+  if (event.type === "pivot") return "PIVOT DEPARTURE";
+  if (event.type === "aegis") return "AEGIS PICKUP";
   if (event.type === "goal" || event.type === "commanderGoal") return "STANDARD SECURED";
   return event.type.toUpperCase();
 }
@@ -1829,8 +1955,33 @@ async function presentExecutionEvent(event, position, runId, eventPause, fromPos
       audio.play(event.restored ? "heal" : "healer", session.execution.completedSteps);
       pause = Math.max(pause, event.restored ? 540 : 360);
       break;
+    case "aegis":
+      cellClass = "is-event-aegis";
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx("aegis", position);
+      audio.play("aegis", session.execution.completedSteps);
+      pause = Math.max(pause, 360);
+      break;
+    case "stride":
+    case "pivot":
+      cellClass = `is-event-${event.type}`;
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx(event.type, position);
+      pulseClass(dom.party, "is-stepping");
+      audio.play(event.type, session.execution.completedSteps);
+      pause = Math.max(pause, 300);
+      break;
     case "goblin": {
       const tier = event.cost === 1 ? "goblin" : event.cost === 2 ? "orc" : "ogre";
+      if (event.protected) {
+        pulseClass(dom.party, "is-guarding");
+        cellClass = `is-event-${tier}-death`;
+        cell?.classList.add(cellClass);
+        effect = spawnExecutionFx("aegis-guard", position);
+        audio.play("aegisGuard", session.execution.completedSteps);
+        pause = Math.max(pause, 430);
+        break;
+      }
       pulseClass(dom.party, "is-attacking");
       audio.play("soldierAttack", session.execution.completedSteps);
       if (!await executionDelay(70, runId)) return false;
@@ -1888,7 +2039,7 @@ async function presentExecutionEvent(event, position, runId, eventPause, fromPos
   const current = await executionDelay(pause, runId);
   clearExecutionEvent(cell, cellClass, effect);
   if (event.type === "healer") cell?.classList.remove("is-event-healer", "is-event-healing");
-  dom.party.classList.remove("is-attacking", "is-casting", "is-healing");
+  dom.party.classList.remove("is-attacking", "is-casting", "is-healing", "is-guarding");
   return current;
 }
 
@@ -1898,7 +2049,15 @@ function cancelExecution() {
   dom.executionFx?.replaceChildren();
   if (dom.executionFx) dom.executionFx.hidden = true;
   document.body.classList.remove("is-execution-locked");
-  dom.party.classList.remove("is-starting", "is-attacking", "is-casting", "is-healing");
+  dom.party.classList.remove("is-starting", "is-attacking", "is-casting", "is-healing", "is-guarding");
+}
+
+function isManeuverMarkerTile(tileCode) {
+  return ["stride", "pivot"].includes(TILE_DEFS[tileCode]?.type);
+}
+
+function resolveExecutionArrival(step) {
+  if (!isManeuverMarkerTile(step.tile)) session.execution.resolved.add(keyOf(step.position));
 }
 
 async function executePlan() {
@@ -1967,19 +2126,30 @@ async function executePlan() {
     }
 
     for (const event of startStep.events) {
-      if (!await presentExecutionEvent(event, startStep.position, runId, eventPause, startStep.position)) return;
+      const eventPosition = event.position ?? startStep.position;
+      if (!await presentExecutionEvent(event, eventPosition, runId, eventPause, startStep.position)) return;
     }
     session.party = createPartyState(startStep.after);
-    session.execution.resolved.add(keyOf(startStep.position));
+    resolveExecutionArrival(startStep);
     refreshSession(startStep.events.at(-1) ?? null);
 
     for (let stepIndex = 1; stepIndex < route.trace.steps.length; stepIndex += 1) {
       if (runId !== session.executionRunId) return;
       const step = route.trace.steps[stepIndex];
+      const departureEvents = step.events.filter((event) => ["stride", "pivot"].includes(event.type));
+      const arrivalEvents = step.events.filter((event) => !["stride", "pivot"].includes(event.type));
+      session.party = createPartyState(step.before);
+
+      for (const event of departureEvents) {
+        const eventPosition = event.position ?? route.trace.steps[stepIndex - 1].position;
+        if (!await presentExecutionEvent(event, eventPosition, runId, eventPause, eventPosition)) return;
+        session.execution.resolved.add(keyOf(eventPosition));
+        refreshSession(event);
+      }
+
       session.execution.stepIndex = stepIndex;
       session.execution.position = { ...step.position };
       session.execution.eventLabel = "MARCHING";
-      session.party = createPartyState(step.before);
       audio.play("move", session.execution.completedSteps);
       renderParty(true);
       renderRouteMeters();
@@ -1987,12 +2157,13 @@ async function executePlan() {
       if (!await executionDelay(stepPause, runId)) return;
 
       const previousPosition = route.trace.steps[stepIndex - 1].position;
-      for (const event of step.events) {
-        if (!await presentExecutionEvent(event, step.position, runId, eventPause, previousPosition)) return;
+      for (const event of arrivalEvents) {
+        const eventPosition = event.position ?? step.position;
+        if (!await presentExecutionEvent(event, eventPosition, runId, eventPause, previousPosition)) return;
       }
 
       session.party = createPartyState(step.after);
-      session.execution.resolved.add(keyOf(step.position));
+      resolveExecutionArrival(step);
       session.execution.completedSteps += 1;
       const lastEvent = step.events.at(-1) ?? null;
       refreshSession(lastEvent);
@@ -2181,7 +2352,7 @@ function startDesignerPlaytest(level, context) {
     shortName: "Workshop",
     eyebrow: "LIVE PLAYTEST",
     description: "This browser-saved draft is running in the real game rules. Return to the workshop to keep painting.",
-    accent: levelUsesFormation(level) ? "water" : "gold",
+    accent: levelUsesFormation(level) ? "water" : levelUsesGrandManeuver(level) ? "teal" : "gold",
     levels: [level],
   };
   session.levelIndex = 0;

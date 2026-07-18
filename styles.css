@@ -13,6 +13,7 @@
   --coral: #ff766f;
   --violet: #a997ff;
   --water: #5da9d6;
+  --teal: #38d6c5;
   --pack-accent: var(--gold);
   --cell-size: 56px;
   font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", "Liberation Mono", monospace;
@@ -44,11 +45,14 @@ body[data-pack="mint"] { --pack-accent: var(--mint); }
 body[data-pack="violet"] { --pack-accent: var(--violet); }
 body[data-pack="coral"] { --pack-accent: var(--coral); }
 body[data-pack="water"] { --pack-accent: var(--water); }
+body[data-pack="teal"] { --pack-accent: var(--teal); }
 
 body[data-pack="mint"] .sky-glow--one { opacity: 0.14; }
 body[data-pack="violet"] .sky-glow--two { opacity: 0.15; }
 body[data-pack="coral"] .sky-glow--one { background: var(--coral); opacity: 0.13; }
 body[data-pack="water"] .sky-glow--two { background: var(--water); opacity: 0.16; }
+body[data-pack="teal"] .sky-glow--one { background: var(--teal); opacity: 0.16; }
+body[data-pack="teal"] .sky-glow--two { background: #3d8ca9; opacity: 0.12; }
 
 body::before {
   position: fixed;
@@ -376,11 +380,13 @@ a:focus-visible {
 .pack-tab--violet.is-current { border-color: rgba(169, 151, 255, 0.58); background: rgba(169, 151, 255, 0.12); }
 .pack-tab--coral.is-current { border-color: rgba(255, 118, 111, 0.58); background: rgba(255, 118, 111, 0.12); }
 .pack-tab--water.is-current { border-color: rgba(93, 169, 214, 0.6); background: rgba(93, 169, 214, 0.12); }
+.pack-tab--teal.is-current { border-color: rgba(56, 214, 197, 0.62); background: rgba(56, 214, 197, 0.12); }
 .pack-tab--gold.is-current > span { background: var(--gold); }
 .pack-tab--mint.is-current > span { background: var(--mint); }
 .pack-tab--violet.is-current > span { background: var(--violet); }
 .pack-tab--coral.is-current > span { background: var(--coral); }
 .pack-tab--water.is-current > span { background: var(--water); }
+.pack-tab--teal.is-current > span { background: var(--teal); }
 .pack-tab.is-complete::after {
   position: absolute;
   top: 3px;
@@ -856,6 +862,72 @@ a:focus-visible {
   box-shadow: inset 0 0 0 2px rgba(202, 239, 255, 0.2);
 }
 
+.cell--stride,
+.cell--pivot {
+  background-color: #397e78;
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(220, 255, 250, 0.2), transparent 67%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
+  box-shadow: inset 0 0 0 2px rgba(215, 255, 250, 0.2);
+}
+
+.cell--pivot {
+  background-color: #5d5586;
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(237, 232, 255, 0.2), transparent 67%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
+}
+
+.maneuver-marker,
+.aegis-symbol {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.maneuver-marker {
+  inset: 11% 13% 22%;
+  border: clamp(2px, 7cqi, 4px) double #e5fffb;
+  border-radius: clamp(4px, 12cqi, 8px);
+  color: #f4fffd;
+  background: rgba(22, 91, 85, 0.72);
+  box-shadow: inset 0 -5px rgba(12, 59, 57, 0.36), 0 3px 0 rgba(25, 37, 46, 0.45);
+  font-size: clamp(10px, 36cqi, 22px);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 2px rgba(18, 33, 41, 0.7);
+  transition: opacity 180ms ease, filter 180ms ease, transform 180ms ease;
+}
+
+.maneuver-marker--pivot {
+  border-style: dashed;
+  border-color: #eeeaff;
+  color: #f8f5ff;
+  background: rgba(73, 62, 119, 0.76);
+}
+
+.cell--aegis {
+  background-color: #917441;
+  background-image:
+    radial-gradient(circle at 50% 48%, rgba(255, 240, 176, 0.48), transparent 61%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
+  box-shadow: inset 0 0 0 2px rgba(255, 238, 174, 0.24);
+}
+
+.aegis-symbol {
+  inset: 12% 18% 23%;
+  color: #fff5c9;
+  border: clamp(2px, 7cqi, 4px) double #fff0a8;
+  border-radius: 44% 44% 56% 56%;
+  background: linear-gradient(145deg, #429d98, #1d625f);
+  box-shadow: inset 0 -7px rgba(15, 63, 62, 0.48), 0 3px 0 rgba(48, 39, 35, 0.52), 0 0 9px rgba(255, 229, 143, 0.4);
+  font-size: clamp(11px, 34cqi, 22px);
+  text-shadow: 0 2px rgba(31, 54, 52, 0.72);
+  transition: opacity 180ms ease, filter 180ms ease, transform 180ms ease;
+}
+
 .beacon-symbol,
 .current-arrow,
 .standard-gem {
@@ -934,6 +1006,36 @@ a:focus-visible {
 .cell--planned-event .tile-badge {
   border-style: dashed;
   filter: saturate(0.72) brightness(1.08);
+}
+
+.cell.is-planned-marker-pending::after {
+  background: repeating-linear-gradient(135deg, rgba(255, 242, 214, 0.12) 0 4px, transparent 4px 9px);
+  box-shadow: inset 0 0 0 3px rgba(255, 226, 143, 0.78), inset 0 0 14px rgba(255, 201, 92, 0.28);
+  animation: markerPending 850ms steps(2, end) infinite;
+}
+
+.cell.is-planned-marker-pending .maneuver-marker {
+  filter: brightness(1.32) drop-shadow(0 0 5px rgba(255, 236, 176, 0.8));
+}
+
+.cell.is-planned-marker-resolved .maneuver-marker,
+.cell--stride.cell--resolved .maneuver-marker,
+.cell--pivot.cell--resolved .maneuver-marker {
+  opacity: 0.58;
+  filter: saturate(0.72) brightness(1.2);
+}
+
+.cell.is-planned-marker-resolved::after {
+  box-shadow: inset 0 0 0 2px rgba(56, 214, 197, 0.52);
+}
+
+.cell.is-planned-protected .entity--goblin {
+  filter: drop-shadow(0 0 5px #fff0a8) drop-shadow(0 0 9px rgba(56, 214, 197, 0.66));
+}
+
+.cell.is-planned-protected .tile-label::before {
+  content: "◆ ";
+  color: #fff0a8;
 }
 
 .cell--resolved:not(.cell--wilds)::after {
@@ -1029,6 +1131,12 @@ a:focus-visible {
 .cell--river.cell--resolved .entity {
   opacity: 1;
   transform: translateX(-50%);
+}
+
+.cell--aegis.cell--resolved .aegis-symbol {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.48);
+  filter: brightness(1.8) drop-shadow(0 0 8px #fff0a8);
 }
 
 /* Planning previews communicate outcomes without resolving the real board. */
@@ -1170,6 +1278,13 @@ a:focus-visible {
   border-color: #ffe2dc;
   background: var(--coral);
   box-shadow: 0 2px 0 #853f49;
+}
+
+.tile-badge--aegis {
+  color: #153f3c;
+  border-color: #fff3b5;
+  background: #ffe08a;
+  box-shadow: 0 2px 0 #8d6b34;
 }
 
 .tile-badge--formation {
@@ -1344,6 +1459,7 @@ a:focus-visible {
 .route-line--captain { stroke: var(--coral); filter: drop-shadow(0 0 5px rgba(255, 118, 111, 0.55)); }
 .route-line--water,
 .route-line--warden { stroke: var(--water); filter: drop-shadow(0 0 5px rgba(93, 169, 214, 0.55)); }
+.route-line--teal { stroke: var(--teal); filter: drop-shadow(0 0 6px rgba(56, 214, 197, 0.62)); }
 
 .route-head {
   fill: #fff3bf;
@@ -1360,6 +1476,7 @@ a:focus-visible {
 .route-head--captain { fill: #ffe3df; stroke: #b94b4b; }
 .route-head--water,
 .route-head--warden { fill: #def5ff; stroke: #39789d; }
+.route-head--teal { fill: #d9fffa; stroke: #16877d; }
 
 .route-head[hidden] {
   display: none;
@@ -1404,6 +1521,10 @@ a:focus-visible {
 
 .party-token.is-healing {
   animation: partyHeal 520ms steps(6, end);
+}
+
+.party-token.is-guarding {
+  animation: partyGuard 430ms steps(5, end);
 }
 
 .party-token.is-stationary {
@@ -1507,7 +1628,8 @@ a:focus-visible {
 .execution-fx--recruit::before,
 .execution-fx--mage::before,
 .execution-fx--builder::before,
-.execution-fx--healer::before {
+.execution-fx--healer::before,
+.execution-fx--aegis::before {
   inset: 14%;
   border: 4px solid var(--fx-color, var(--mint));
   border-radius: 50%;
@@ -1519,17 +1641,67 @@ a:focus-visible {
 .execution-fx--mage { --fx-color: var(--violet); }
 .execution-fx--builder { --fx-color: var(--gold); }
 .execution-fx--healer { --fx-color: var(--coral); }
+.execution-fx--aegis { --fx-color: #ffe08a; }
 
 .execution-fx--recruit::after,
 .execution-fx--mage::after,
 .execution-fx--builder::after,
-.execution-fx--healer::after {
+.execution-fx--healer::after,
+.execution-fx--aegis::after {
   inset: 22%;
   background:
     linear-gradient(90deg, transparent 44%, var(--fx-color) 44% 56%, transparent 56%),
     linear-gradient(transparent 44%, var(--fx-color) 44% 56%, transparent 56%);
   filter: drop-shadow(0 0 4px var(--fx-color));
   animation: pickupSpark 300ms steps(4, end) forwards;
+}
+
+.execution-fx--stride::before,
+.execution-fx--pivot::before {
+  inset: 10%;
+  display: grid;
+  place-items: center;
+  border: 4px double #e8fffb;
+  border-radius: 7px;
+  color: #f5fffd;
+  background: rgba(24, 117, 108, 0.48);
+  box-shadow: 0 0 14px rgba(56, 214, 197, 0.82);
+  font-size: clamp(14px, 48%, 28px);
+  font-weight: 900;
+  animation: maneuverResolve 320ms steps(5, end) forwards;
+}
+
+.execution-fx--stride::before { content: "↕↔"; }
+
+.execution-fx--pivot::before {
+  content: "↱↰";
+  border-style: dashed;
+  border-color: #eeeaff;
+  background: rgba(79, 66, 132, 0.5);
+  box-shadow: 0 0 14px rgba(169, 151, 255, 0.86);
+}
+
+.execution-fx--aegis-guard::before,
+.execution-fx--aegis-guard::after {
+  inset: 2% 12%;
+  border: 4px double #fff0a8;
+  border-radius: 46% 46% 58% 58%;
+  background: rgba(31, 122, 115, 0.28);
+  box-shadow: inset 0 0 12px rgba(56, 214, 197, 0.65), 0 0 15px rgba(255, 224, 138, 0.85);
+  animation: aegisGuard 430ms steps(6, end) forwards;
+}
+
+.execution-fx--aegis-guard::after {
+  inset: 28%;
+  content: "◆";
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: #fff5c9;
+  background: transparent;
+  box-shadow: none;
+  font-size: clamp(12px, 42%, 25px);
+  animation-direction: reverse;
 }
 
 .execution-fx--impact-goblin::before,
@@ -1606,6 +1778,9 @@ a:focus-visible {
 .cell.is-event-mage .entity--mage { animation: pickupMage 320ms steps(6, end) forwards; }
 .cell.is-event-builder .entity--builder { animation: pickupBuilder 320ms steps(5, end) forwards; }
 .cell.is-event-healer .entity--healer { animation: pickupHealer 360ms steps(6, end) forwards; }
+.cell.is-event-aegis .aegis-symbol { animation: pickupAegis 360ms steps(6, end) forwards; }
+.cell.is-event-stride .maneuver-marker,
+.cell.is-event-pivot .maneuver-marker { animation: markerResolve 320ms steps(5, end); }
 .cell.is-event-goblin-death .entity--goblin { animation: goblinDeath 280ms steps(5, end) forwards; }
 .cell.is-event-orc-death .entity--goblin { animation: orcDeath 340ms steps(6, end) forwards; }
 .cell.is-event-ogre-death .entity--goblin { animation: ogreDeath 400ms steps(7, end) forwards; }
@@ -1901,6 +2076,8 @@ body.is-execution-locked .commander-chip {
   transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
 }
 
+.roster-card[hidden] { display: none; }
+
 .roster-card.is-active {
   border-color: rgba(115, 224, 164, 0.35);
   background: rgba(115, 224, 164, 0.07);
@@ -1911,6 +2088,11 @@ body.is-execution-locked .commander-chip {
   background: rgba(255, 118, 111, 0.09);
 }
 
+.roster-card--aegis.is-active {
+  border-color: rgba(56, 214, 197, 0.54);
+  background: rgba(56, 214, 197, 0.09);
+}
+
 .roster-card.is-bumping {
   animation: rosterBump 260ms ease-out;
 }
@@ -1918,6 +2100,21 @@ body.is-execution-locked .commander-chip {
 .roster-card img {
   width: 38px;
   image-rendering: pixelated;
+}
+
+.roster-card__glyph {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 3px double #fff0a8;
+  border-radius: 44% 44% 56% 56%;
+  color: #fff5c9;
+  background: linear-gradient(145deg, #429d98, #1d625f);
+  box-shadow: inset 0 -5px rgba(15, 63, 62, 0.44), 0 2px 0 rgba(27, 24, 37, 0.5);
+  font-style: normal;
+  font-size: 17px;
+  line-height: 1;
 }
 
 .roster-card span,
@@ -2186,6 +2383,22 @@ body.is-execution-locked .commander-chip {
 .legend-swatch--locked { background: #5f7fa7; }
 .legend-swatch--healer { background: var(--coral); box-shadow: 0 0 5px rgba(255, 118, 111, 0.7); }
 .legend-swatch--formation { border: 1px double #e7f9ff; background: var(--water); box-shadow: 0 0 5px rgba(93, 169, 214, 0.72); }
+.legend-swatch--stride {
+  border: 1px double #e5fffb;
+  background: var(--teal);
+  box-shadow: 0 0 5px rgba(56, 214, 197, 0.72);
+}
+.legend-swatch--pivot {
+  border: 1px dashed #eeeaff;
+  background: var(--violet);
+  box-shadow: 0 0 5px rgba(169, 151, 255, 0.72);
+}
+.legend-swatch--aegis {
+  border: 1px double #fff0a8;
+  border-radius: 45% 45% 58% 58%;
+  background: #278a82;
+  box-shadow: 0 0 5px rgba(255, 224, 138, 0.72);
+}
 
 footer {
   display: flex;
@@ -2843,6 +3056,51 @@ dialog::backdrop {
     url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
 }
 
+.designer-cell--stride {
+  color: #effffc;
+  background-color: #397e78;
+  background-image:
+    linear-gradient(90deg, rgba(226, 255, 251, 0.52) 0 8%, transparent 8% 92%, rgba(226, 255, 251, 0.52) 92%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
+}
+
+.designer-cell--pivot {
+  color: #f5f1ff;
+  background-color: #5d5586;
+  background-image:
+    radial-gradient(circle, transparent 0 35%, rgba(238, 234, 255, 0.52) 37% 43%, transparent 45%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
+}
+
+.designer-cell--aegis {
+  color: #fff5c9;
+  background-color: #8e713f;
+  background-image:
+    radial-gradient(circle, rgba(255, 232, 150, 0.56), transparent 62%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
+}
+
+.designer-cell--stride .designer-cell__glyph,
+.designer-cell--pivot .designer-cell__glyph {
+  width: 29px;
+  height: 29px;
+  border: 2px double currentColor;
+  border-radius: 5px;
+  background: rgba(26, 49, 57, 0.42);
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 12px;
+}
+
+.designer-cell--pivot .designer-cell__glyph { border-style: dashed; }
+
+.designer-cell--aegis .designer-cell__glyph {
+  width: 25px;
+  height: 28px;
+  border: 2px double #fff0a8;
+  border-radius: 44% 44% 56% 56%;
+  background: #287f78;
+}
+
 .designer-cell--formation {
   color: #ecfbff;
   background-color: #4b7895;
@@ -3135,6 +3393,12 @@ dialog::backdrop {
   45% { transform: translate(-50%, -60%) scale(1.08); filter: brightness(1.55) drop-shadow(0 0 12px var(--coral)); }
 }
 
+@keyframes partyGuard {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); filter: none; }
+  35% { transform: translate(-50%, -54%) scale(0.92); filter: brightness(1.35) drop-shadow(0 0 7px #fff0a8); }
+  65% { transform: translate(-50%, -54%) scale(1.08); filter: brightness(1.65) drop-shadow(0 0 13px var(--teal)); }
+}
+
 @keyframes ghostRing {
   0%, 100% { transform: scale(0.9) rotate(0); opacity: 0.42; }
   50% { transform: scale(1.05) rotate(12deg); opacity: 0.9; }
@@ -3162,6 +3426,19 @@ dialog::backdrop {
   0% { transform: scale(0.28) rotate(-8deg); opacity: 0; }
   35% { opacity: 1; }
   100% { transform: scale(1.55) rotate(18deg); opacity: 0; }
+}
+
+@keyframes maneuverResolve {
+  0% { transform: scale(0.55); opacity: 0; }
+  38% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1.28); opacity: 0; }
+}
+
+@keyframes aegisGuard {
+  0% { transform: scale(0.45); opacity: 0; }
+  30% { transform: scale(0.9); opacity: 1; }
+  68% { transform: scale(1.05); opacity: 0.95; }
+  100% { transform: scale(1.35); opacity: 0; }
 }
 
 @keyframes fireballFlight {
@@ -3225,6 +3502,22 @@ dialog::backdrop {
   0% { transform: translateX(-50%) scale(1); opacity: 1; }
   45% { transform: translateX(-50%) translateY(-32%) scale(1.14); filter: brightness(1.55) drop-shadow(0 0 12px var(--coral)); }
   100% { transform: translateX(-50%) translateY(-65%) scale(0.45); opacity: 0; }
+}
+
+@keyframes pickupAegis {
+  0% { transform: scale(1); opacity: 1; }
+  45% { transform: translateY(-20%) scale(1.14); filter: brightness(1.55) drop-shadow(0 0 12px #fff0a8); }
+  100% { transform: translateY(-55%) scale(0.45); opacity: 0; }
+}
+
+@keyframes markerResolve {
+  0%, 100% { transform: scale(1); }
+  45% { transform: scale(1.08); filter: brightness(1.55) drop-shadow(0 0 10px var(--teal)); }
+}
+
+@keyframes markerPending {
+  0%, 100% { opacity: 0.62; }
+  50% { opacity: 1; }
 }
 
 @keyframes goblinDeath {
@@ -3526,7 +3819,9 @@ dialog::backdrop {
 
   .board-frame--dense .switch-symbol,
   .board-frame--dense .gate-symbol,
-  .board-frame--dense .formation-gate {
+  .board-frame--dense .formation-gate,
+  .board-frame--dense .maneuver-marker,
+  .board-frame--dense .aegis-symbol {
     inset: 12%;
     border-width: 1px;
     border-radius: 3px;
@@ -3544,8 +3839,10 @@ dialog::backdrop {
 
   .roster-card--soldier { grid-column: 1 / -1; }
   .roster-card--healer { grid-column: 1 / -1; }
+  .roster-card--aegis { grid-column: 1 / -1; }
   .roster-card { grid-template-columns: 34px 1fr; }
-  .roster-card img { width: 34px; }
+  .roster-card img,
+  .roster-card__glyph { width: 34px; }
   .roster-card small { display: none; }
 
   .designer-head h2 { font-size: 25px; }
@@ -4422,6 +4719,17 @@ body.hud-help-open #helpToggleButton {
   width: 27px;
 }
 
+.company-hud .roster-card__glyph {
+  width: 27px;
+  height: 31px;
+  border-width: 2px;
+  font-size: 13px;
+}
+
+body[data-pack="teal"] .company-hud .roster-card--aegis {
+  grid-column: 1 / -1;
+}
+
 .company-hud .roster-card span {
   overflow: hidden;
   font-size: 6px;
@@ -4686,6 +4994,14 @@ body.hud-help-open .help-panel {
     gap: 4px;
   }
 
+  body[data-pack="teal"] .company-hud .roster:has(.roster-card--aegis:not([hidden])) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  body[data-pack="teal"] .company-hud .roster-card--aegis:not([hidden]) {
+    grid-column: auto;
+  }
+
   .company-hud .roster-card {
     min-height: 46px;
     grid-template-columns: 22px minmax(0, 1fr);
@@ -4695,6 +5011,12 @@ body.hud-help-open .help-panel {
 
   .company-hud .roster-card img {
     width: 22px;
+  }
+
+  .company-hud .roster-card__glyph {
+    width: 22px;
+    height: 26px;
+    font-size: 11px;
   }
 
   .company-hud .roster-card span {
@@ -4891,6 +5213,12 @@ body.hud-help-open .help-panel {
     width: 18px;
   }
 
+  .company-hud .roster-card__glyph {
+    width: 18px;
+    height: 22px;
+    font-size: 9px;
+  }
+
   .gameplay-footer-hud .draw-callout__mouse {
     display: none;
   }
@@ -4941,6 +5269,12 @@ body.hud-help-open .help-panel {
   .company-hud .roster-card img {
     display: block;
     width: 20px;
+  }
+
+  .company-hud .roster-card__glyph {
+    width: 20px;
+    height: 24px;
+    font-size: 10px;
   }
 
   .company-hud .roster-card--soldier small {

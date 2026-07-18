@@ -3,6 +3,7 @@ import { RELIEF_ROUTES_RAW } from "./packs/relief-routes.js";
 import { THREE_BANNERS_RAW } from "./packs/three-banners.js";
 import { SECOND_WIND_RAW } from "./packs/second-wind.js";
 import { FORMATION_MUSTER_RAW } from "./packs/formation-muster.js";
+import { GRAND_MANEUVER_RAW } from "./packs/grand-maneuver.js";
 
 const RAW_LEVELS = [
   {
@@ -162,6 +163,7 @@ const RELIEF_ROUTE_LEVELS = RELIEF_ROUTES_RAW.map(parseLevel);
 const THREE_BANNER_LEVELS = THREE_BANNERS_RAW.map(parseLevel);
 const SECOND_WIND_LEVELS = SECOND_WIND_RAW.map((level) => parseLevel({ ...level, mode: "campaign" }));
 const FORMATION_MUSTER_LEVELS = FORMATION_MUSTER_RAW.map((level) => parseLevel({ ...level, mode: "campaign" }));
+const GRAND_MANEUVER_LEVELS = GRAND_MANEUVER_RAW.map((level) => parseLevel({ ...level, mode: "campaign" }));
 
 export const PACKS = Object.freeze([
   {
@@ -213,6 +215,16 @@ export const PACKS = Object.freeze([
     description: "Match exact ready-soldier formations, then turn recruits, battles, specialists, seals, and recovery into one precise campaign.",
     accent: "water",
     levels: FORMATION_MUSTER_LEVELS,
+  },
+  {
+    id: "grand-maneuver",
+    number: 6,
+    name: "The Grand Maneuver",
+    shortName: "Grand Maneuver",
+    eyebrow: "DRILL & DEFENSE",
+    description: "Read every straight and turning drill marker, then carry one visible Aegis to the battle that needs its reserve.",
+    accent: "teal",
+    levels: GRAND_MANEUVER_LEVELS,
   },
 ]);
 

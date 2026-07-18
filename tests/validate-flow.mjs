@@ -36,6 +36,8 @@ function verifyTraceReplay(level, path, commander, label) {
     const replayed = advanceState(level, replayState, step.position, {
       commander,
       countMove: index > 0,
+      previous: path[index - 2],
+      from: path[index - 1],
     });
     assert.equal(replayed.ok, true, `${label} step ${index} must replay successfully.`);
     assert.deepEqual(replayed.events, step.events, `${label} step ${index} must preserve newly emitted event order.`);

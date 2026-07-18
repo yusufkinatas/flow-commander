@@ -18,6 +18,10 @@ export const TILE_DEFS = Object.freeze({
   "1": { type: "formation", walkable: true, required: 1, label: "Formation checkpoint · exactly 1 ready soldier" },
   "2": { type: "formation", walkable: true, required: 2, label: "Formation checkpoint · exactly 2 ready soldiers" },
   "3": { type: "formation", walkable: true, required: 3, label: "Formation checkpoint · exactly 3 ready soldiers" },
+  // The Grand Maneuver: route markers resolve only when the route departs them.
+  i: { type: "stride", walkable: true, label: "Stride Marker · continue straight through" },
+  p: { type: "pivot", walkable: true, label: "Pivot Marker · make a right-angle turn" },
+  a: { type: "aegis", walkable: true, label: "Aegis Bearer · protects one battle" },
   y: { type: "switch", walkable: true, channel: "sun", label: "Sun switch" },
   Y: { type: "gate", walkable: true, channel: "sun", label: "Sun gate" },
   q: { type: "switch", walkable: true, channel: "moon", label: "Moon switch" },
@@ -133,6 +137,7 @@ export function createPartyState(initial = {}) {
     mages: initial.mages ?? 0,
     builders: initial.builders ?? 0,
     healers: initial.healers ?? 0,
+    aegis: initial.aegis ?? 0,
     switches: new Set(initial.switches ?? []),
     deliveries: new Map(initial.deliveries ?? []),
     beacons: new Set(initial.beacons ?? []),
@@ -149,6 +154,8 @@ export function clonePartyState(state) {
 function cloneEvent(event) {
   const cloned = { ...event };
   if (event.position) cloned.position = { ...event.position };
+  if (event.incoming) cloned.incoming = { ...event.incoming };
+  if (event.outgoing) cloned.outgoing = { ...event.outgoing };
   if (event.targets) cloned.targets = event.targets.map((target) => ({ ...target }));
   return cloned;
 }
@@ -177,9 +184,14 @@ export function enterTile(state, tileCode, position) {
         const plural = tile.cost === 1 ? "soldier" : "soldiers";
         return failedTransition(`This goblin guard needs ${tile.cost} ready ${plural} — you have ${next.soldiers}.`);
       }
-      next.soldiers -= tile.cost;
-      next.tired += tile.cost;
-      next.events.push({ ...baseEvent, cost: tile.cost });
+      if (next.aegis > 0) {
+        next.aegis -= 1;
+        next.events.push({ ...baseEvent, cost: tile.cost, protected: true, aegisUsed: 1 });
+      } else {
+        next.soldiers -= tile.cost;
+        next.tired += tile.cost;
+        next.events.push({ ...baseEvent, cost: tile.cost });
+      }
       break;
     case "mage":
       next.mages += 1;
@@ -202,6 +214,10 @@ export function enterTile(state, tileCode, position) {
       next.events.push({ ...baseEvent, restored });
       break;
     }
+    case "aegis":
+      next.aegis += 1;
+      next.events.push({ ...baseEvent, amount: 1 });
+      break;
     case "formation": {
       const actual = next.soldiers;
       if (actual !== tile.required) {
@@ -270,6 +286,53 @@ export function movementLimit(level, commander = null, state = null) {
   return base + (state?.bonusMoves ?? 0);
 }
 
+function routeVector(from, to) {
+  if (!from || !to) return null;
+  return { dr: to.r - from.r, dc: to.c - from.c };
+}
+
+function isCardinalUnitVector(vector) {
+  return Boolean(vector) && Math.abs(vector.dr) + Math.abs(vector.dc) === 1;
+}
+
+function markerDeparture(level, state, previous, from, to) {
+  const tileCode = from ? level.rows[from.r]?.[from.c] : null;
+  const tile = TILE_DEFS[tileCode];
+  if (!tile || !["stride", "pivot"].includes(tile.type)) {
+    return { ok: true, state, events: [] };
+  }
+
+  const incoming = routeVector(previous, from);
+  const outgoing = routeVector(from, to);
+  if (!isCardinalUnitVector(incoming) || !isCardinalUnitVector(outgoing)) {
+    return failedTransition(
+      tile.type === "stride"
+        ? "Enter the Stride Marker before choosing its straight departure."
+        : "Enter the Pivot Marker before choosing its right-angle departure.",
+    );
+  }
+
+  const straight = incoming.dr === outgoing.dr && incoming.dc === outgoing.dc;
+  const perpendicular = incoming.dr * outgoing.dr + incoming.dc * outgoing.dc === 0;
+  if (tile.type === "stride" && !straight) {
+    return failedTransition("Continue straight through the Stride Marker in the direction you entered.");
+  }
+  if (tile.type === "pivot" && !perpendicular) {
+    return failedTransition("Make a right-angle turn when leaving the Pivot Marker.");
+  }
+
+  const next = clonePartyState(state);
+  const event = {
+    type: tile.type,
+    tile: tileCode,
+    position: { ...from },
+    incoming,
+    outgoing,
+  };
+  next.events.push(event);
+  return { ok: true, state: next, events: [cloneEvent(event)], event: cloneEvent(event) };
+}
+
 function feedAdjacentTargets(level, state, position) {
   const fed = [];
   for (const target of level.targets) {
@@ -293,7 +356,10 @@ export function advanceState(level, state, position, options = {}) {
     return failedTransition("That standard belongs to another commander.");
   }
 
-  const transition = enterTile(state, tileCode, position);
+  const departure = markerDeparture(level, state, options.previous, options.from, position);
+  if (!departure.ok) return departure;
+
+  const transition = enterTile(departure.state, tileCode, position);
   if (!transition.ok) return transition;
   const next = transition.state;
   if (options.countMove !== false) next.moves += tile.moveCost ?? 1;
@@ -308,7 +374,7 @@ export function advanceState(level, state, position, options = {}) {
     return failedTransition(`${remaining} hungry monster${remaining === 1 ? " still needs" : "s still need"} a delivery before the banner.`);
   }
 
-  const events = transition.events.map(cloneEvent);
+  const events = [...departure.events, ...transition.events].map(cloneEvent);
   if (fed.length) {
     const deliveryEvent = { type: "delivery", targets: fed, position: { ...position } };
     next.events.push(deliveryEvent);
@@ -344,14 +410,20 @@ export function tracePath(level, path, options = {}) {
   const visited = new Set();
   for (let index = 0; index < path.length; index += 1) {
     const position = path[index];
-    const previous = path[index - 1];
+    const from = path[index - 1];
+    const previous = path[index - 2];
     const positionKey = keyOf(position);
     if (visited.has(positionKey)) return { ok: false, initialState, state: clonePartyState(state), steps, won: false, reason: "The route cannot cross itself.", blockedIndex: index };
-    if (previous && !moveAllowedFrom(level, previous, position)) {
-      return { ok: false, initialState, state: clonePartyState(state), steps, won: false, reason: forcedDirectionAt(level, previous) ? "Follow the marching arrow." : "Move one square up, down, left, or right.", blockedIndex: index };
+    if (from && !moveAllowedFrom(level, from, position)) {
+      return { ok: false, initialState, state: clonePartyState(state), steps, won: false, reason: forcedDirectionAt(level, from) ? "Follow the marching arrow." : "Move one square up, down, left, or right.", blockedIndex: index };
     }
     const before = clonePartyState(state);
-    const transition = advanceState(level, state, position, { commander, countMove: index > 0 });
+    const transition = advanceState(level, state, position, {
+      commander,
+      countMove: index > 0,
+      previous,
+      from,
+    });
     if (!transition.ok) {
       return {
         ...transition,
@@ -377,9 +449,11 @@ export function tracePath(level, path, options = {}) {
     }
   }
 
-  const won = samePosition(path.at(-1), goal)
+  const finalTile = TILE_DEFS[level.rows[path.at(-1)?.r]?.[path.at(-1)?.c]];
+  const pending = ["stride", "pivot"].includes(finalTile?.type);
+  const won = !pending && samePosition(path.at(-1), goal)
     && (level.mode !== "relief" || deliveriesComplete(level, state));
-  return { ok: true, initialState, state: clonePartyState(state), steps, won };
+  return { ok: true, initialState, state: clonePartyState(state), steps, won, pending };
 }
 
 export function simulatePath(level, path, options = {}) {
@@ -476,7 +550,11 @@ function enumerateSingleRoutes(level, commander, occupied, onSolution, control, 
       const next = { r: position.r + direction.dr, c: position.c + direction.dc };
       const nextKey = keyOf(next);
       if (visited.has(nextKey) || !walkable(level, next)) continue;
-      const transition = advanceState(level, state, next, { commander });
+      const transition = advanceState(level, state, next, {
+        commander,
+        previous: path.at(-2),
+        from: position,
+      });
       if (!transition.ok) {
         metrics.pruned += 1;
         continue;

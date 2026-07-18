@@ -24,6 +24,9 @@ const BRUSHES = Object.freeze([
   { code: "b", label: "Builder recruit", glyph: "B" },
   { code: "~", label: "River · needs a builder", glyph: "≈" },
   { code: "f", label: "Field healer", glyph: "✚" },
+  { code: "i", label: "Stride Marker · continue straight through", glyph: "↕↔" },
+  { code: "p", label: "Pivot Marker · make a right-angle turn", glyph: "↱↰" },
+  { code: "a", label: "Aegis Bearer · protects one battle", glyph: "◆" },
   { code: "y", label: "Sun switch", glyph: "☀" },
   { code: "Y", label: "Sun gate", glyph: "☀" },
   { code: "q", label: "Moon switch", glyph: "☾" },
@@ -155,10 +158,10 @@ function appendBrushVisual(node, code, palette = false) {
     glyph.textContent = BRUSH_BY_CODE.get(code)?.glyph ?? code;
     node.append(glyph);
   }
-  if (["R", "r", "g", "o", "t"].includes(code)) {
+  if (["R", "r", "g", "o", "t", "a"].includes(code)) {
     const badge = document.createElement("span");
-    badge.className = `designer-cell__badge${/[rR]/.test(code) ? " is-pickup" : ""}`;
-    badge.textContent = code === "R" ? "+2" : code === "r" ? "+1" : String(TILE_DEFS[code].cost);
+    badge.className = `designer-cell__badge${/[rRa]/.test(code) ? " is-pickup" : ""}`;
+    badge.textContent = code === "R" ? "+2" : ["r", "a"].includes(code) ? "+1" : String(TILE_DEFS[code].cost);
     node.append(badge);
   }
 }

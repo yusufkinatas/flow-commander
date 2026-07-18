@@ -10,13 +10,13 @@ import {
 } from "../js/engine.js";
 import { exportableLevel, normalizeDesign } from "../js/designer.js";
 
-assert.deepEqual(PACKS.map((pack) => pack.levels.length), [10, 6, 5, 3, 25], "The five packs must contain 10, 6, 5, 3, and 25 levels.");
+assert.deepEqual(PACKS.map((pack) => pack.levels.length), [10, 6, 5, 3, 25, 25], "The six packs must contain 10, 6, 5, 3, 25, and 25 levels.");
 
 const report = [];
 for (const pack of PACKS) {
   let previousDifficulty = 0;
   for (const level of pack.levels) {
-    if (pack.id !== "formation-muster") {
+    if (!["formation-muster", "grand-maneuver"].includes(pack.id)) {
       assert.ok(level.difficulty >= previousDifficulty, `${pack.name} level ${level.id} breaks the authored difficulty ramp.`);
     }
     previousDifficulty = level.difficulty;
@@ -109,6 +109,13 @@ for (const checkpoint of ["1", "2", "3"]) {
 }
 assert.doesNotMatch(pack5Tiles, /[hHABXZCV*wc<>^v]/, "The Exacting Muster may only extend campaign mechanics with Formation Checkpoints.");
 
+const pack6Tiles = PACKS[5].levels.flatMap((level) => level.map).join("");
+for (const maneuverTile of ["i", "p", "a"]) {
+  assert.ok(pack6Tiles.includes(maneuverTile), `The Grand Maneuver is missing new mechanic tile: ${maneuverTile}`);
+}
+assert.doesNotMatch(pack6Tiles, /[123]/, "The Grand Maneuver must never use Exact Number / Formation Checkpoint tiles.");
+assert.doesNotMatch(pack6Tiles, /[hHABXZCV*wc<>^v]/, "The Grand Maneuver may not import Relief or Convoy tile families.");
+
 // Convoy route geometry is independent of which commander the player selects first.
 const convoySample = PACKS[2].levels[0];
 const reversedConvoy = { ...convoySample, commanders: [...convoySample.commanders].reverse() };
@@ -160,4 +167,4 @@ const openFieldAcceptance = analyzeLevel(openFieldLevel, { solutionLimit: 1, nod
 assert.equal(openFieldAcceptance.solvable, true, "An open field with alternative winning routes must pass solvability validation.");
 
 console.table(report);
-console.log("✓ 49 levels have winning routes · open alternatives accepted · free commander order proven · workshop export verified · all mechanics present");
+console.log("✓ 74 levels have winning routes · open alternatives accepted · free commander order proven · workshop export verified · all mechanics present");

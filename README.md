@@ -1,6 +1,6 @@
 # Flow Commander
 
-A complete, dependency-free browser puzzle game about drawing exact routes and assembling the right tiny company. The campaign contains 49 handcrafted puzzles across five distinct level packs.
+A complete, dependency-free browser puzzle game about drawing routes and assembling the right tiny company. The campaign contains 74 handcrafted puzzles across six distinct level packs.
 
 ## Play
 
@@ -27,6 +27,7 @@ Controls:
 - **The Three Banners — 5 levels.** Command Alder, Bramble, and Cinder in order. Their trails lock behind them and cannot cross; later maps add beacons, mud, supply caches, and one-way marching arrows.
 - **The Second Wind — 3 levels.** Return to the lone original commander with no army, gather units en route, and use one new Healer recruit to restore tired soldiers at exactly the right moment.
 - **The Exacting Muster — 25 levels.** Learn the campaign from first principles, then master Formation Checkpoints that admit exactly one, two, or three ready soldiers. Recruits, combat, specialists, seals, and healing gain new order-sensitive consequences across a research-backed sawtooth curve.
+- **The Grand Maneuver — 25 levels.** Learn Stride Markers, Pivot Markers, and stackable Aegis protection in three staged arcs, then combine route geometry with combat order and familiar specialist duties. This pack deliberately excludes every Formation Checkpoint / Exact Number tile.
 
 Each pack builds toward a deliberately interlocked finale, while progress is stored separately per pack.
 
@@ -36,9 +37,9 @@ Each pack builds toward a deliberately interlocked finale, while progress is sto
 npm test
 ```
 
-The validator uses the same transition engine as gameplay. It fails if it cannot find at least one complete winning route within the safety limit; it stops at the first winning witness and never rejects a level for having alternatives. The witness is replayed in execution order with the same immutable trace used by Planning. Pack 4 additionally proves that every healer restores tired soldiers between two separate combat costs. Pack 5 checks a reference winning route for every level, exact checkpoint events, deterministic replay, the authored sawtooth, and the required complexity distribution. `tests/curate-relief.mjs` remains available as a deterministic mixed-authorship tool: it explores terrain variants, rejects only unsolvable maps, and ranks solvable survivors without requiring corridor-like uniqueness.
+The validator uses the same transition engine as gameplay. It fails if it cannot find at least one complete winning route within the safety limit; it stops at the first winning witness and never rejects a level for having alternatives. The witness is replayed in execution order with the same immutable trace used by Planning. Pack 4 additionally proves that every healer restores tired soldiers between two separate combat costs. Pack 5 checks checkpoint behavior, reference routes, deterministic replay, and its authored curve. Pack 6 checks departure geometry in every rotation, Aegis strength/stacking semantics, staged UI disclosure, editor preservation, all 25 reference routes, its authored sawtooth, and the complete absence of the Exact Number family. `tests/curate-relief.mjs` remains available as a deterministic mixed-authorship tool: it explores terrain variants, rejects only unsolvable maps, and ranks solvable survivors without requiring corridor-like uniqueness.
 
-Pack 5's design basis, mechanic selection, roster, reviewer record, and solver report live in `docs/`. Formation Checkpoints are also available as `=1`, `=2`, and `=3` brushes in the in-game Level Designer.
+Pack 5 and Pack 6 each keep their design basis, mechanic roster, frozen campaign specification, independent reviewer record, and solver report in `docs/`. The in-game Level Designer exposes Stride, Pivot, and Aegis brushes alongside the legacy brush set.
 
 ## Art and sound
 

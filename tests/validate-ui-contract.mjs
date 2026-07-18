@@ -242,17 +242,57 @@ assert.match(cssWithoutComments, /\.route-line--water\b/, "Pack 5 planned and ex
 assert.match(cssWithoutComments, /\.route-head--water\b/, "Pack 5 route heads must use the water accent.");
 assert.match(cssWithoutComments, /\.level-list\s*\{[^}]*overflow-y\s*:\s*auto/s, "Desktop level navigation must scroll independently when a pack is long.");
 
-// The board is the viewport-sized game stage; secondary information lives in accessible HUD drawers.
-for (const id of ["campaignPanel", "companyPanel", "campaignToggleButton", "companyToggleButton", "hudScrim"]) {
-  assert.ok(htmlIds.includes(id), `Full-screen HUD requires #${id}.`);
-  assert.ok(boundIds.includes(id), `game.js must bind full-screen HUD #${id}.`);
+// Core state is an always-visible game HUD; only missions and secondary help use drawers.
+for (const id of ["campaignPanel", "companyPanel", "helpPanel", "campaignToggleButton", "helpToggleButton", "hudScrim"]) {
+  assert.ok(htmlIds.includes(id), `Persistent gameplay HUD requires #${id}.`);
+  assert.ok(boundIds.includes(id), `game.js must bind gameplay HUD #${id}.`);
 }
+assert.ok(!htmlIds.includes("companyToggleButton"), "Company must not have a hideable toggle.");
+assert.ok(!boundIds.includes("companyToggleButton"), "game.js must not bind a company drawer toggle.");
+
+function elementById(tagName, id) {
+  const match = new RegExp(`<${tagName}\\b(?=[^>]*\\bid=["']${escapeRegExp(id)}["'])[^>]*>[\\s\\S]*?<\\/${tagName}>`, "i").exec(html);
+  assert.ok(match, `#${id} must be a <${tagName}>.`);
+  return match[0];
+}
+
+const companyMarkup = elementById("aside", "companyPanel");
+const helpMarkup = elementById("aside", "helpPanel");
+const companyOpeningTag = companyMarkup.match(/^<aside[^>]*>/i)?.[0] ?? "";
+assert.match(companyMarkup, /id=["']roster["']/, "The always-visible company HUD must include roster counts.");
+assert.match(companyMarkup, /id=["']routeMeters["']/, "The always-visible company HUD must include route and objective meters.");
+assert.match(companyMarkup, /id=["']companyPhase["']/, "The always-visible company HUD must include planning/execution phase state.");
+assert.match(companyMarkup, /id=["']commanderOrder["']/, "The always-visible company HUD must retain convoy commander controls.");
+assert.match(companyMarkup, /id=["']sealMeter["']/, "The always-visible company HUD must retain seal state.");
+assert.doesNotMatch(companyMarkup, /id=["'](?:rulesList|mapLegend)["']/, "Legend and field rules belong in Help, not the core company HUD.");
+assert.doesNotMatch(companyOpeningTag, /\b(?:hidden|inert)\b|aria-hidden=["']true["']/i, "The company HUD must start visible and accessible.");
+
+assert.match(helpMarkup, /id=["']rulesList["']/, "The Help drawer must contain Field Rules.");
+assert.match(helpMarkup, /id=["']mapLegend["']/, "The Help drawer must contain the map legend.");
+assert.match(helpMarkup, /id=["']mechanicLabel["']/, "The Help drawer must contain the current mission mechanic.");
+assert.match(helpMarkup, /id=["']tipLabel["']/, "The Help drawer must contain the current mission tip.");
+const helpButton = elementById("button", "helpToggleButton");
+assert.match(helpButton, /aria-controls=["']helpPanel["']/, "The ? button must control the Help drawer.");
+assert.match(helpButton, /aria-expanded=["']false["']/, "The Help drawer must start closed.");
+assert.match(helpButton, /aria-label=["'][^"']*(?:guide|help|rules)[^"']*["']/i, "The ? button needs an explicit accessible label.");
+assert.match(helpButton, /aria-hidden=["']true["'][^>]*>\s*\?\s*<\/span>/i, "The visible question mark must be decorative beside the accessible label.");
+const campaignButton = elementById("button", "campaignToggleButton");
+assert.match(campaignButton, /aria-controls=["']campaignPanel["']/, "The Missions button must control the campaign drawer.");
+assert.match(campaignButton, /aria-expanded=["']false["']/, "The campaign drawer must start closed.");
+
 assert.match(cssWithoutComments, /\.game-shell\s*\{[^}]*height\s*:\s*100dvh[^}]*overflow\s*:\s*hidden/s, "The game shell must occupy and contain the viewport.");
-assert.match(cssWithoutComments, /\.board-stage\s*\{[^}]*position\s*:\s*absolute[^}]*inset\s*:\s*0/s, "The board stage must fill the game shell rather than render as a center card.");
-assert.match(cssWithoutComments, /\.campaign-panel\s*,\s*\.company-panel\s*\{[^}]*position\s*:\s*fixed/s, "Campaign and company UI must render as overlay HUD drawers.");
-assert.match(cssWithoutComments, /\.hud-drawer-toggle\s*\{[^}]*position\s*:\s*fixed/s, "HUD drawer controls must remain available around the stage.");
-assert.match(html, /id="campaignToggleButton"[^>]*aria-controls="campaignPanel"[^>]*aria-expanded="false"/s, "The campaign drawer toggle must expose its controlled panel and initial state.");
-assert.match(html, /id="companyToggleButton"[^>]*aria-controls="companyPanel"[^>]*aria-expanded="false"/s, "The company drawer toggle must expose its controlled panel and initial state.");
+assert.match(cssWithoutComments, /\.game-shell\s*\{[^}]*grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+var\(--company-hud-width\)/s, "Desktop gameplay must reserve a collision-free right column for Company.");
+assert.match(cssWithoutComments, /\.company-hud\s*\{[^}]*grid-column\s*:\s*2/s, "Company must occupy the top-right gameplay HUD column.");
+assert.match(cssWithoutComments, /\.company-hud\s*\{[^}]*z-index\s*:\s*59/s, "Company must remain visible above transient drawer scrims.");
+assert.match(cssWithoutComments, /\.help-panel\s*\{[^}]*position\s*:\s*fixed[^}]*visibility\s*:\s*hidden/s, "Help must remain a secondary drawer.");
+assert.match(cssWithoutComments, /body\.hud-help-open\s+\.help-panel\s*\{[^}]*visibility\s*:\s*visible/s, "The ? control must expose the Help drawer.");
+assert.doesNotMatch(cssWithoutComments, /hud-company-open|hud-drawer-toggle--company/, "Company drawer state must not return.");
+assert.doesNotMatch(game, /\bcompanyToggle\b|hud-company-open|companyPanel\.inert|companyPanel\.setAttribute\(\s*["']aria-hidden/, "Company must never participate in drawer state.");
+
+const missionMarkup = /<section\b[^>]*class=["'][^"']*\bmission-panel\b[^"']*["'][^>]*>[\s\S]*?<\/section>/i.exec(html)?.[0] ?? "";
+assert.ok(missionMarkup, "The puzzle playfield section must exist.");
+assert.doesNotMatch(missionMarkup, /id=["'](?:levelNumber|levelTitle|levelBriefing|difficultyLabel|mechanicLabel|tipLabel)["']|class=["'][^"']*(?:mission-head|objective-ribbon)/i, "Level title, briefing, and mechanic chrome must not occupy the persistent playfield.");
+assert.doesNotMatch(cssWithoutComments, /\.board-stage\s*\{[^}]*padding\s*:\s*(?:205px|258px|120px)/s, "The playfield must not reserve its old oversized title-card padding.");
 
 const fitBoardToViewport = namedFunction(game, "fitBoardToViewport");
 assert.match(fitBoardToViewport.body, /boardViewport\.clientWidth/, "Board fitting must use the actual viewport width.");
@@ -270,17 +310,19 @@ assert.doesNotMatch(game, /scrollIntoView\s*\(/, "Fixed-viewport gameplay must n
 
 const setActiveHudDrawer = namedFunction(game, "setActiveHudDrawer");
 assert.match(setActiveHudDrawer.body, /\.inert\s*=\s*!campaignOpen/, "Closed campaign UI must leave the focus order.");
-assert.match(setActiveHudDrawer.body, /\.inert\s*=\s*!companyOpen/, "Closed company UI must leave the focus order.");
+assert.match(setActiveHudDrawer.body, /\.inert\s*=\s*!helpOpen/, "Closed Help UI must leave the focus order.");
+assert.match(setActiveHudDrawer.body, /name\s*===\s*["']campaign["']\s*\|\|\s*name\s*===\s*["']help["']/, "Only Missions and Help may be active drawers.");
+assert.doesNotMatch(setActiveHudDrawer.body, /company/i, "Drawer state must not touch the permanent company HUD.");
 assert.match(setActiveHudDrawer.body, /aria-expanded/, "HUD toggles must report open state.");
 assert.match(setActiveHudDrawer.body, /aria-hidden/, "HUD panels must report hidden state.");
 const initializeHud = namedFunction(game, "initializeHud");
-assert.match(initializeHud.body, /setActiveHudDrawer\s*\(\s*null\s*\)/, "HUD initialization must close and inert both drawers.");
+assert.match(initializeHud.body, /setActiveHudDrawer\s*\(\s*null\s*\)/, "HUD initialization must close and inert Missions and Help.");
 assert.match(game.slice(initializeHud.end), /initializeHud\s*\(\s*\)/, "The closed HUD state must be initialized during startup.");
 assert.match(game, /event\.key\s*!==\s*["']Escape["'][\s\S]*setActiveHudDrawer\s*\(\s*null\s*\)[\s\S]*\.focus\s*\(/, "Escape must close a drawer and restore focus to its toggle.");
 const renderPackSelector = namedFunction(game, "renderPackSelector");
 assert.match(renderPackSelector.body, /loadPack\s*\([^)]*\)[\s\S]*setActiveHudDrawer\s*\(\s*null\s*\)/, "Changing packs must close the campaign drawer instead of leaving focus behind its scrim.");
 assert.match(refreshSession.body, /campaignToggle\.disabled\s*=\s*session\.phase\s*===\s*["']executing["']/, "Mission navigation must lock during solution playback.");
-assert.match(refreshSession.body, /companyToggle\.disabled\s*=\s*session\.phase\s*===\s*["']executing["']/, "Company navigation must lock during solution playback.");
+assert.match(refreshSession.body, /helpToggle\.disabled\s*=\s*session\.phase\s*===\s*["']executing["']/, "Help navigation must lock during solution playback.");
 assert.match(executePlan.body, /setActiveHudDrawer\s*\(\s*null\s*\)[\s\S]*session\.phase\s*=\s*["']executing["']/, "Execution must close any desktop HUD drawer before playback starts.");
 
 const cellRule = cssRules.find((rule) => rule.selector === ".cell");
@@ -289,6 +331,9 @@ const hungerBadgeRule = cssRules.find((rule) => rule.selector === ".tile-badge--
 assert.ok(cellRule && /container-type\s*:\s*inline-size/.test(cellRule.declarations), "Every rendered cell must expose its actual inline size to contained UI.");
 assert.ok(badgeRule && /cqi/.test(badgeRule.declarations), "Tile badges must scale from actual rendered cell width.");
 assert.ok(hungerBadgeRule && /cqi/.test(hungerBadgeRule.declarations), "Expanding hunger badges must also scale from actual rendered cell width.");
+assert.match(badgeRule.declarations, /min-width\s*:\s*clamp\(8px,\s*28cqi,\s*20px\)/, "Tile badges must remain capped below sprite size on large cells.");
+assert.match(badgeRule.declarations, /font-size\s*:\s*clamp\(4px,\s*12cqi,\s*9px\)/, "Tile badge type must remain capped and subordinate to its sprite.");
+assert.match(cssWithoutComments, /@container\s+board-cell\s*\(max-width:\s*20px\)\s*\{[\s\S]*?\.tile-badge\s*\{[^}]*width\s*:\s*5px[^}]*height\s*:\s*5px/s, "Dense maps must reduce badges to a five-pixel corner marker.");
 assert.doesNotMatch(badgeRule.declarations, /min-width\s*:\s*20px|height\s*:\s*20px/, "Tile badges must not return to fixed dimensions that can obscure entities.");
 assert.doesNotMatch(hungerBadgeRule.declarations, /min-width\s*:\s*24px/, "Hunger progress must not retain its old fixed width floor.");
 

@@ -82,11 +82,11 @@ const dom = {
   packSelector: document.querySelector("#packSelector"),
   campaignPanel: document.querySelector("#campaignPanel"),
   companyPanel: document.querySelector("#companyPanel"),
+  helpPanel: document.querySelector("#helpPanel"),
   campaignToggle: document.querySelector("#campaignToggleButton"),
-  companyToggle: document.querySelector("#companyToggleButton"),
+  helpToggle: document.querySelector("#helpToggleButton"),
   hudScrim: document.querySelector("#hudScrim"),
   hudMissionIndicator: document.querySelector("#hudMissionIndicator"),
-  hudCompanyIndicator: document.querySelector("#hudCompanyIndicator"),
   campaignEyebrow: document.querySelector("#campaignEyebrow"),
   packDescription: document.querySelector("#packDescription"),
   packTitle: document.querySelector("#packTitleLabel"),
@@ -934,6 +934,7 @@ function renderMetadata() {
   const hasSeals = level.map.some((row) => /[yYqQ]/.test(row));
   dom.sealMeter.hidden = !hasSeals;
   document.body.dataset.pack = session.pack.accent;
+  document.body.dataset.mode = level.mode;
   renderRules();
 }
 
@@ -1119,7 +1120,6 @@ function bumpRoster(type) {
 
 function renderRoster(event = null) {
   const ready = planSolved();
-  if (dom.companyHeading) dom.companyHeading.textContent = session.phase === "planning" ? "PLANNED COMPANY" : "YOUR COMPANY";
   const phaseText = ready
     ? "READY"
     : session.phase === "planning"
@@ -1135,13 +1135,14 @@ function renderRoster(event = null) {
   dom.mageCount.textContent = String(session.party.mages);
   dom.builderCount.textContent = String(session.party.builders);
   dom.healerCount.textContent = String(session.party.healers);
-  dom.hudCompanyIndicator.textContent = `${session.party.soldiers} READY`;
   dom.soldierCard.classList.toggle("is-active", session.party.soldiers > 0);
   dom.mageCard.classList.toggle("is-active", session.party.mages > 0);
   dom.builderCard.classList.toggle("is-active", session.party.builders > 0);
   dom.healerCard.classList.toggle("is-active", session.party.healers > 0);
   dom.sunSeal.classList.toggle("is-open", session.party.switches.has("sun"));
   dom.moonSeal.classList.toggle("is-open", session.party.switches.has("moon"));
+  dom.sunSeal.setAttribute("aria-label", `Sun seal ${session.party.switches.has("sun") ? "open" : "closed"}`);
+  dom.moonSeal.setAttribute("aria-label", `Moon seal ${session.party.switches.has("moon") ? "open" : "closed"}`);
   renderRouteMeters();
   renderCommanderOrder();
   if (event) bumpRoster(event.type);
@@ -1347,7 +1348,7 @@ function refreshSession(event = null, animate = false, previewEvents = []) {
   dom.designer.disabled = session.phase === "executing";
   dom.credits.disabled = session.phase === "executing";
   dom.campaignToggle.disabled = session.phase === "executing";
-  dom.companyToggle.disabled = session.phase === "executing";
+  dom.helpToggle.disabled = session.phase === "executing";
   if (dom.solve) {
     dom.solve.hidden = !ready;
     dom.solve.disabled = !ready;
@@ -2119,17 +2120,17 @@ function fitBoardToViewport() {
 }
 
 function setActiveHudDrawer(name) {
-  const active = name === "campaign" || name === "company" ? name : null;
+  const active = name === "campaign" || name === "help" ? name : null;
   const campaignOpen = active === "campaign";
-  const companyOpen = active === "company";
+  const helpOpen = active === "help";
   document.body.classList.toggle("hud-campaign-open", campaignOpen);
-  document.body.classList.toggle("hud-company-open", companyOpen);
+  document.body.classList.toggle("hud-help-open", helpOpen);
   dom.campaignToggle.setAttribute("aria-expanded", String(campaignOpen));
-  dom.companyToggle.setAttribute("aria-expanded", String(companyOpen));
+  dom.helpToggle.setAttribute("aria-expanded", String(helpOpen));
   dom.campaignPanel.inert = !campaignOpen;
-  dom.companyPanel.inert = !companyOpen;
+  dom.helpPanel.inert = !helpOpen;
   dom.campaignPanel.setAttribute("aria-hidden", String(!campaignOpen));
-  dom.companyPanel.setAttribute("aria-hidden", String(!companyOpen));
+  dom.helpPanel.setAttribute("aria-hidden", String(!helpOpen));
   dom.hudScrim.hidden = !active;
 }
 
@@ -2318,18 +2319,18 @@ dom.backToDesigner.addEventListener("click", returnToDesigner);
 dom.campaignToggle.addEventListener("click", () => {
   setActiveHudDrawer(document.body.classList.contains("hud-campaign-open") ? null : "campaign");
 });
-dom.companyToggle.addEventListener("click", () => {
-  setActiveHudDrawer(document.body.classList.contains("hud-company-open") ? null : "company");
+dom.helpToggle.addEventListener("click", () => {
+  setActiveHudDrawer(document.body.classList.contains("hud-help-open") ? null : "help");
 });
 dom.hudScrim.addEventListener("click", () => {
-  const returnTarget = document.body.classList.contains("hud-campaign-open") ? dom.campaignToggle : dom.companyToggle;
+  const returnTarget = document.body.classList.contains("hud-campaign-open") ? dom.campaignToggle : dom.helpToggle;
   setActiveHudDrawer(null);
   returnTarget.focus({ preventScroll: true });
 });
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  if (!document.body.classList.contains("hud-campaign-open") && !document.body.classList.contains("hud-company-open")) return;
-  const returnTarget = document.body.classList.contains("hud-campaign-open") ? dom.campaignToggle : dom.companyToggle;
+  if (!document.body.classList.contains("hud-campaign-open") && !document.body.classList.contains("hud-help-open")) return;
+  const returnTarget = document.body.classList.contains("hud-campaign-open") ? dom.campaignToggle : dom.helpToggle;
   setActiveHudDrawer(null);
   returnTarget.focus({ preventScroll: true });
 });

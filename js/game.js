@@ -70,6 +70,7 @@ const AUDIO_ASSETS = Object.freeze({
 const dom = {
   board: document.querySelector("#gameBoard"),
   boardStage: document.querySelector("#boardStage"),
+  boardViewport: document.querySelector("#boardViewport"),
   missionPanel: document.querySelector(".mission-panel"),
   boardFrame: document.querySelector(".board-frame"),
   routeLayer: document.querySelector("#routeLayer"),
@@ -79,6 +80,13 @@ const dom = {
   confetti: document.querySelector("#confettiLayer"),
   levelList: document.querySelector("#levelList"),
   packSelector: document.querySelector("#packSelector"),
+  campaignPanel: document.querySelector("#campaignPanel"),
+  companyPanel: document.querySelector("#companyPanel"),
+  campaignToggle: document.querySelector("#campaignToggleButton"),
+  companyToggle: document.querySelector("#companyToggleButton"),
+  hudScrim: document.querySelector("#hudScrim"),
+  hudMissionIndicator: document.querySelector("#hudMissionIndicator"),
+  hudCompanyIndicator: document.querySelector("#hudCompanyIndicator"),
   campaignEyebrow: document.querySelector("#campaignEyebrow"),
   packDescription: document.querySelector("#packDescription"),
   packTitle: document.querySelector("#packTitleLabel"),
@@ -771,7 +779,6 @@ function renderBoard() {
   dom.board.style.setProperty("--rows", level.height);
   dom.boardFrame.style.setProperty("--cols", level.width);
   dom.boardFrame.style.setProperty("--rows", level.height);
-  dom.boardFrame.classList.toggle("board-frame--dense", level.width > 12);
   dom.routeLayer.setAttribute("viewBox", `0 0 ${level.width} ${level.height}`);
   dom.routeLayer.setAttribute("preserveAspectRatio", "none");
 
@@ -797,6 +804,7 @@ function renderBoard() {
     });
   });
   renderObjectiveTiles();
+  window.requestAnimationFrame(fitBoardToViewport);
 }
 
 function renderPackSelector() {
@@ -813,7 +821,10 @@ function renderPackSelector() {
     if (index === session.packIndex) button.classList.add("is-current");
     if (cleared === pack.levels.length) button.classList.add("is-complete");
     button.innerHTML = `<span>0${pack.number}</span><strong>${pack.shortName}</strong><small>${cleared}/${pack.levels.length}</small>`;
-    button.addEventListener("click", () => loadPack(index));
+    button.addEventListener("click", () => {
+      loadPack(index);
+      setActiveHudDrawer(null);
+    });
     dom.packSelector.append(button);
   });
 }
@@ -836,7 +847,10 @@ function renderLevelList() {
       <span class="level-button__copy"><strong>${level.name}</strong><small>${level.mechanic}</small></span>
       <span class="level-button__check">${index === session.levelIndex ? "◆" : ""}</span>
     `;
-    button.addEventListener("click", () => loadLevel(index));
+    button.addEventListener("click", () => {
+      loadLevel(index);
+      setActiveHudDrawer(null);
+    });
     dom.levelList.append(button);
   });
 
@@ -914,6 +928,9 @@ function renderMetadata() {
   dom.difficulty.textContent = `${difficultyName(level.difficulty)} · ${level.difficulty}/10`;
   dom.mechanic.textContent = `${level.id === 1 ? "CORE" : "FIELD NOTE"}: ${level.mechanic.toUpperCase()}`;
   dom.tip.textContent = level.tip;
+  dom.hudMissionIndicator.textContent = session.playtest
+    ? "LIVE DRAFT"
+    : `P${String(session.pack.number).padStart(2, "0")} · L${String(level.id).padStart(2, "0")}`;
   const hasSeals = level.map.some((row) => /[yYqQ]/.test(row));
   dom.sealMeter.hidden = !hasSeals;
   document.body.dataset.pack = session.pack.accent;
@@ -1118,6 +1135,7 @@ function renderRoster(event = null) {
   dom.mageCount.textContent = String(session.party.mages);
   dom.builderCount.textContent = String(session.party.builders);
   dom.healerCount.textContent = String(session.party.healers);
+  dom.hudCompanyIndicator.textContent = `${session.party.soldiers} READY`;
   dom.soldierCard.classList.toggle("is-active", session.party.soldiers > 0);
   dom.mageCard.classList.toggle("is-active", session.party.mages > 0);
   dom.builderCard.classList.toggle("is-active", session.party.builders > 0);
@@ -1328,6 +1346,8 @@ function refreshSession(event = null, animate = false, previewEvents = []) {
   dom.backToDesigner.disabled = session.phase === "executing";
   dom.designer.disabled = session.phase === "executing";
   dom.credits.disabled = session.phase === "executing";
+  dom.campaignToggle.disabled = session.phase === "executing";
+  dom.companyToggle.disabled = session.phase === "executing";
   if (dom.solve) {
     dom.solve.hidden = !ready;
     dom.solve.disabled = !ready;
@@ -1895,6 +1915,7 @@ async function executePlan() {
   const eventPause = totalSteps > 44 ? 220 : totalSteps > 24 ? 255 : 300;
   const firstRoute = routes[0];
 
+  setActiveHudDrawer(null);
   session.phase = "executing";
   session.mode = "executing";
   session.drawing = false;
@@ -2073,6 +2094,49 @@ function resetLevel() {
   refreshSession();
 }
 
+function fitBoardToViewport() {
+  const width = dom.boardViewport.clientWidth;
+  const height = dom.boardViewport.clientHeight;
+  if (!width || !height) return;
+  const viewportStyle = window.getComputedStyle(dom.boardViewport);
+  const frameStyle = window.getComputedStyle(dom.boardFrame);
+  const horizontalPadding = Number.parseFloat(viewportStyle.paddingLeft) + Number.parseFloat(viewportStyle.paddingRight);
+  const verticalPadding = Number.parseFloat(viewportStyle.paddingTop) + Number.parseFloat(viewportStyle.paddingBottom);
+  const horizontalFrame = Number.parseFloat(frameStyle.borderLeftWidth) + Number.parseFloat(frameStyle.borderRightWidth);
+  const verticalFrame = Number.parseFloat(frameStyle.borderTopWidth) + Number.parseFloat(frameStyle.borderBottomWidth);
+  const maxCellSize = 104;
+  const cellSize = Math.max(1, Math.floor(Math.min(
+    (width - horizontalPadding - horizontalFrame) / session.level.width,
+    (height - verticalPadding - verticalFrame) / session.level.height,
+    maxCellSize,
+  )));
+  const boardWidth = cellSize * session.level.width + horizontalFrame;
+  const boardHeight = cellSize * session.level.height + verticalFrame;
+  dom.boardFrame.style.width = `${boardWidth}px`;
+  dom.boardFrame.style.height = `${boardHeight}px`;
+  dom.boardFrame.dataset.cellSize = cellSize.toFixed(2);
+  dom.boardFrame.classList.toggle("board-frame--dense", cellSize < 44);
+}
+
+function setActiveHudDrawer(name) {
+  const active = name === "campaign" || name === "company" ? name : null;
+  const campaignOpen = active === "campaign";
+  const companyOpen = active === "company";
+  document.body.classList.toggle("hud-campaign-open", campaignOpen);
+  document.body.classList.toggle("hud-company-open", companyOpen);
+  dom.campaignToggle.setAttribute("aria-expanded", String(campaignOpen));
+  dom.companyToggle.setAttribute("aria-expanded", String(companyOpen));
+  dom.campaignPanel.inert = !campaignOpen;
+  dom.companyPanel.inert = !companyOpen;
+  dom.campaignPanel.setAttribute("aria-hidden", String(!campaignOpen));
+  dom.companyPanel.setAttribute("aria-hidden", String(!companyOpen));
+  dom.hudScrim.hidden = !active;
+}
+
+function initializeHud() {
+  setActiveHudDrawer(null);
+}
+
 function loadLevel(index) {
   cancelExecution();
   clearTimers();
@@ -2097,9 +2161,6 @@ function loadLevel(index) {
   renderLevelList();
   refreshSession();
   dom.board.focus({ preventScroll: true });
-  if (window.matchMedia("(max-width: 820px)").matches) {
-    dom.missionPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
 }
 
 function startDesignerPlaytest(level, context) {
@@ -2146,7 +2207,6 @@ function startDesignerPlaytest(level, context) {
   renderLevelList();
   refreshSession();
   dom.board.focus({ preventScroll: true });
-  dom.missionPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function returnToDesigner() {
@@ -2255,9 +2315,32 @@ dom.creditsDialog.addEventListener("click", (event) => {
 dom.replay.addEventListener("click", resetLevel);
 dom.next.addEventListener("click", () => session.playtest ? returnToDesigner() : loadNextMission());
 dom.backToDesigner.addEventListener("click", returnToDesigner);
+dom.campaignToggle.addEventListener("click", () => {
+  setActiveHudDrawer(document.body.classList.contains("hud-campaign-open") ? null : "campaign");
+});
+dom.companyToggle.addEventListener("click", () => {
+  setActiveHudDrawer(document.body.classList.contains("hud-company-open") ? null : "company");
+});
+dom.hudScrim.addEventListener("click", () => {
+  const returnTarget = document.body.classList.contains("hud-campaign-open") ? dom.campaignToggle : dom.companyToggle;
+  setActiveHudDrawer(null);
+  returnTarget.focus({ preventScroll: true });
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (!document.body.classList.contains("hud-campaign-open") && !document.body.classList.contains("hud-company-open")) return;
+  const returnTarget = document.body.classList.contains("hud-campaign-open") ? dom.campaignToggle : dom.companyToggle;
+  setActiveHudDrawer(null);
+  returnTarget.focus({ preventScroll: true });
+});
+
+const boardResizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(fitBoardToViewport) : null;
+boardResizeObserver?.observe(dom.boardViewport);
+window.addEventListener("resize", fitBoardToViewport);
 
 designerController = createLevelDesigner({ onPlaytest: startDesignerPlaytest });
 
 updateSoundButton();
 audio.setTheme(0);
+initializeHud();
 loadLevel(0);

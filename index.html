@@ -10,7 +10,7 @@
     />
     <title>Flow Commander</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ffc95c'/%3E%3Cpath d='M16 5l3 7 7 3-7 3-3 8-3-8-7-3 7-3z' fill='%23211c31'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=fullscreen-hud-2" />
   </head>
   <body>
     <div class="sky-glow sky-glow--one" aria-hidden="true"></div>
@@ -48,7 +48,31 @@
     </header>
 
     <main class="game-shell" id="game">
-      <aside class="campaign-panel panel">
+      <button
+        class="hud-drawer-toggle hud-drawer-toggle--campaign"
+        id="campaignToggleButton"
+        type="button"
+        aria-controls="campaignPanel"
+        aria-expanded="false"
+      >
+        <span class="hud-drawer-toggle__glyph" aria-hidden="true">▦</span>
+        <span>MISSIONS</span>
+        <small id="hudMissionIndicator">P01 · L01</small>
+      </button>
+      <button
+        class="hud-drawer-toggle hud-drawer-toggle--company"
+        id="companyToggleButton"
+        type="button"
+        aria-controls="companyPanel"
+        aria-expanded="false"
+      >
+        <span class="hud-drawer-toggle__glyph" aria-hidden="true">♟</span>
+        <span>COMPANY</span>
+        <small id="hudCompanyIndicator">0 READY</small>
+      </button>
+      <button class="hud-scrim" id="hudScrim" type="button" aria-label="Close open game panel" hidden></button>
+
+      <aside class="campaign-panel panel" id="campaignPanel">
         <div class="pack-selector" id="packSelector" role="tablist" aria-label="Choose a level pack"></div>
         <div class="panel-heading">
           <span class="eyebrow" id="campaignEyebrow">CLASSIC CAMPAIGN</span>
@@ -100,18 +124,20 @@
         </div>
 
         <div class="board-stage" id="boardStage">
-          <div class="board-frame">
-            <div
-              class="game-board"
-              id="gameBoard"
-              role="grid"
-              aria-label="Puzzle map. Draw from the commander to the banner."
-            ></div>
-            <svg class="route-layer" id="routeLayer" aria-hidden="true"></svg>
-            <div class="party-token" id="partyToken" aria-hidden="true"></div>
-            <div class="planning-ghost" id="planningGhost" aria-hidden="true" hidden></div>
-            <div class="execution-fx-layer" id="executionFxLayer" aria-hidden="true" hidden></div>
-            <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+          <div class="board-viewport" id="boardViewport">
+            <div class="board-frame">
+              <div
+                class="game-board"
+                id="gameBoard"
+                role="grid"
+                aria-label="Puzzle map. Draw from the commander to the banner."
+              ></div>
+              <svg class="route-layer" id="routeLayer" aria-hidden="true"></svg>
+              <div class="party-token" id="partyToken" aria-hidden="true"></div>
+              <div class="planning-ghost" id="planningGhost" aria-hidden="true" hidden></div>
+              <div class="execution-fx-layer" id="executionFxLayer" aria-hidden="true" hidden></div>
+              <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+            </div>
           </div>
 
           <div class="draw-callout" id="drawCallout" role="status" aria-live="polite">
@@ -129,7 +155,7 @@
         </div>
       </section>
 
-      <aside class="company-panel panel">
+      <aside class="company-panel panel" id="companyPanel">
         <div class="panel-heading">
           <span class="eyebrow" id="companyHeading">PLANNED COMPANY</span>
           <span class="live-dot" id="companyPhase" role="status" aria-live="polite"><i></i><span id="companyPhaseText">PLANNING</span></span>
@@ -391,6 +417,6 @@
       <p class="credits-note">Execution foley is stored locally from Kenney's CC0 RPG Audio pack. Music, vocal chirps, and tonal accents are synthesized in your browser with Web Audio.</p>
     </dialog>
 
-    <script type="module" src="./js/game.js"></script>
+    <script type="module" src="./js/game.js?v=fullscreen-hud-3"></script>
   </body>
 </html>

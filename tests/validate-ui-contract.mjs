@@ -105,6 +105,7 @@ for (const id of boundIds) {
 const phaseIds = [
   "gameBoard",
   "boardStage",
+  "boardViewport",
   "routeLayer",
   "partyToken",
   "planningGhost",
@@ -239,8 +240,57 @@ assert.match(game, /function\s+levelUsesFormation\s*\(/, "Workshop playtests mus
 assert.match(game, /session\.pack\.id\s*===\s*["']formation-muster["']\s*\|\|\s*levelUsesFormation\s*\(\s*\)/, "Formation rules and legends must work in both Pack 5 and workshop playtests.");
 assert.match(cssWithoutComments, /\.route-line--water\b/, "Pack 5 planned and executed routes must use the water accent.");
 assert.match(cssWithoutComments, /\.route-head--water\b/, "Pack 5 route heads must use the water accent.");
-assert.match(cssWithoutComments, /\.campaign-panel\s*\{[^}]*max-height\s*:\s*calc\(100vh\s*-\s*122px\)[^}]*overflow\s*:\s*hidden/s, "Desktop campaign navigation must stay bounded for the 25-level pack.");
 assert.match(cssWithoutComments, /\.level-list\s*\{[^}]*overflow-y\s*:\s*auto/s, "Desktop level navigation must scroll independently when a pack is long.");
+
+// The board is the viewport-sized game stage; secondary information lives in accessible HUD drawers.
+for (const id of ["campaignPanel", "companyPanel", "campaignToggleButton", "companyToggleButton", "hudScrim"]) {
+  assert.ok(htmlIds.includes(id), `Full-screen HUD requires #${id}.`);
+  assert.ok(boundIds.includes(id), `game.js must bind full-screen HUD #${id}.`);
+}
+assert.match(cssWithoutComments, /\.game-shell\s*\{[^}]*height\s*:\s*100dvh[^}]*overflow\s*:\s*hidden/s, "The game shell must occupy and contain the viewport.");
+assert.match(cssWithoutComments, /\.board-stage\s*\{[^}]*position\s*:\s*absolute[^}]*inset\s*:\s*0/s, "The board stage must fill the game shell rather than render as a center card.");
+assert.match(cssWithoutComments, /\.campaign-panel\s*,\s*\.company-panel\s*\{[^}]*position\s*:\s*fixed/s, "Campaign and company UI must render as overlay HUD drawers.");
+assert.match(cssWithoutComments, /\.hud-drawer-toggle\s*\{[^}]*position\s*:\s*fixed/s, "HUD drawer controls must remain available around the stage.");
+assert.match(html, /id="campaignToggleButton"[^>]*aria-controls="campaignPanel"[^>]*aria-expanded="false"/s, "The campaign drawer toggle must expose its controlled panel and initial state.");
+assert.match(html, /id="companyToggleButton"[^>]*aria-controls="companyPanel"[^>]*aria-expanded="false"/s, "The company drawer toggle must expose its controlled panel and initial state.");
+
+const fitBoardToViewport = namedFunction(game, "fitBoardToViewport");
+assert.match(fitBoardToViewport.body, /boardViewport\.clientWidth/, "Board fitting must use the actual viewport width.");
+assert.match(fitBoardToViewport.body, /boardViewport\.clientHeight/, "Board fitting must use the actual viewport height.");
+assert.match(fitBoardToViewport.body, /session\.level\.width/, "Board fitting must account for authored columns.");
+assert.match(fitBoardToViewport.body, /session\.level\.height/, "Board fitting must account for authored rows.");
+assert.match(fitBoardToViewport.body, /boardWidth\s*=\s*cellSize\s*\*\s*session\.level\.width/, "Board width must be recomputed from the fitted cell size and current level columns.");
+assert.match(fitBoardToViewport.body, /boardHeight\s*=\s*cellSize\s*\*\s*session\.level\.height/, "Board height must be recomputed from the fitted cell size and current level rows.");
+const renderBoard = namedFunction(game, "renderBoard");
+assert.match(renderBoard.body, /requestAnimationFrame\s*\(\s*fitBoardToViewport\s*\)/, "Every newly rendered level must schedule a fresh geometry fit.");
+assert.match(game, /new\s+ResizeObserver\s*\(\s*fitBoardToViewport\s*\)/, "Board fitting must react when its viewport changes.");
+assert.match(game, /boardResizeObserver\?\.observe\s*\(\s*dom\.boardViewport\s*\)/, "The resize observer must watch the available viewport rather than the fitted board.");
+assert.doesNotMatch(game, /level\.width\s*>\s*12/, "Rendered cell density must not be guessed from authored column count.");
+assert.doesNotMatch(game, /scrollIntoView\s*\(/, "Fixed-viewport gameplay must not trigger legacy page-scroll jumps.");
+
+const setActiveHudDrawer = namedFunction(game, "setActiveHudDrawer");
+assert.match(setActiveHudDrawer.body, /\.inert\s*=\s*!campaignOpen/, "Closed campaign UI must leave the focus order.");
+assert.match(setActiveHudDrawer.body, /\.inert\s*=\s*!companyOpen/, "Closed company UI must leave the focus order.");
+assert.match(setActiveHudDrawer.body, /aria-expanded/, "HUD toggles must report open state.");
+assert.match(setActiveHudDrawer.body, /aria-hidden/, "HUD panels must report hidden state.");
+const initializeHud = namedFunction(game, "initializeHud");
+assert.match(initializeHud.body, /setActiveHudDrawer\s*\(\s*null\s*\)/, "HUD initialization must close and inert both drawers.");
+assert.match(game.slice(initializeHud.end), /initializeHud\s*\(\s*\)/, "The closed HUD state must be initialized during startup.");
+assert.match(game, /event\.key\s*!==\s*["']Escape["'][\s\S]*setActiveHudDrawer\s*\(\s*null\s*\)[\s\S]*\.focus\s*\(/, "Escape must close a drawer and restore focus to its toggle.");
+const renderPackSelector = namedFunction(game, "renderPackSelector");
+assert.match(renderPackSelector.body, /loadPack\s*\([^)]*\)[\s\S]*setActiveHudDrawer\s*\(\s*null\s*\)/, "Changing packs must close the campaign drawer instead of leaving focus behind its scrim.");
+assert.match(refreshSession.body, /campaignToggle\.disabled\s*=\s*session\.phase\s*===\s*["']executing["']/, "Mission navigation must lock during solution playback.");
+assert.match(refreshSession.body, /companyToggle\.disabled\s*=\s*session\.phase\s*===\s*["']executing["']/, "Company navigation must lock during solution playback.");
+assert.match(executePlan.body, /setActiveHudDrawer\s*\(\s*null\s*\)[\s\S]*session\.phase\s*=\s*["']executing["']/, "Execution must close any desktop HUD drawer before playback starts.");
+
+const cellRule = cssRules.find((rule) => rule.selector === ".cell");
+const badgeRule = cssRules.find((rule) => rule.selector === ".tile-badge");
+const hungerBadgeRule = cssRules.find((rule) => rule.selector === ".tile-badge--hunger");
+assert.ok(cellRule && /container-type\s*:\s*inline-size/.test(cellRule.declarations), "Every rendered cell must expose its actual inline size to contained UI.");
+assert.ok(badgeRule && /cqi/.test(badgeRule.declarations), "Tile badges must scale from actual rendered cell width.");
+assert.ok(hungerBadgeRule && /cqi/.test(hungerBadgeRule.declarations), "Expanding hunger badges must also scale from actual rendered cell width.");
+assert.doesNotMatch(badgeRule.declarations, /min-width\s*:\s*20px|height\s*:\s*20px/, "Tile badges must not return to fixed dimensions that can obscure entities.");
+assert.doesNotMatch(hungerBadgeRule.declarations, /min-width\s*:\s*24px/, "Hunger progress must not retain its old fixed width floor.");
 
 const audioReadme = read("assets/audio/README.md");
 const license = read("assets/audio/kenney-rpg/License.txt");

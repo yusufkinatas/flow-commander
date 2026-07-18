@@ -2,14 +2,14 @@
 
 Date: 2026-07-18
 
-This roster evaluates candidate mechanics against Flow Commander's core promise: draw one inspectable route, manage a small deterministic party, and discover one true ordering. Scores use a 1–5 scale, where higher is better.
+This roster evaluates candidate mechanics against Flow Commander's core promise: draw an inspectable route, manage a small deterministic party, and discover meaningful ordering consequences. Scores use a 1–5 scale, where higher is better.
 
 ## Evaluation criteria
 
 - **Fit:** creates route-order dependencies using the existing party and simple-path grammar.
 - **Novelty:** asks a meaningfully new question rather than renaming an existing dependency.
 - **Clarity:** can be understood from its tile, preview state, and a short rule sentence.
-- **Engineering:** can share the production reducer, exhaustive solver, designer, and execution replay without a risky subsystem. A high score means low integration risk.
+- **Engineering:** can share the production reducer, first-witness solver, designer, and execution replay without a risky subsystem. A high score means low integration risk.
 
 The selection prioritizes fit and clarity, then novelty and engineering. A mechanic is rejected even with a strong total if it compromises preview fidelity, duplicates an existing rule, or expands the game into a different puzzle genre.
 
@@ -40,7 +40,7 @@ The selection prioritizes fit and clarity, then novelty and engineering. A mecha
 2. **Rally Drum** also works with the ready/tired split, but it muddies the Healer's recently taught identity and makes restoration direction harder to communicate.
 3. **Paired Waystones** offer the most spatial novelty, but their discontinuous route would require special pointer, route-line, keyboard, accessibility, and solver presentation rules.
 
-Formation Checkpoints win because their new idea is conceptual rather than systemic: “more soldiers is not always better.” They preserve orthogonal drawing, deterministic replay, state visibility, and the same exact solver while making nearly every campaign resource newly relevant.
+Formation Checkpoints win because their new idea is conceptual rather than systemic: “more soldiers is not always better.” They preserve orthogonal drawing, deterministic replay, state visibility, and the same production solver while making nearly every campaign resource newly relevant.
 
 ## Selected rule: Formation Checkpoints
 
@@ -64,7 +64,7 @@ The rule adds an upper bound to a game that previously rewarded accumulating res
 - **Checkpoint sequence:** two different numbers constrain the resources that may occur between them.
 - **Specialist decoy:** builders and mages remain available without affecting the count, supporting clear mixed-mechanic routes.
 
-Each checkpoint exposes the count the player already sees in the party readout. Failed experiments remain reversible in Planning, and the unique intended route can be proved with the existing exhaustive search.
+Each checkpoint exposes the count the player already sees in the party readout. Failed experiments remain reversible in Planning, and the existing solver can prove that at least one winning route exists. Open geometry, symmetric traversal, and other equivalent winning routes remain valid.
 
 ## Implementation implications
 
@@ -72,7 +72,7 @@ Each checkpoint exposes the count the player already sees in the party readout. 
 - **Planning and execution:** surface required/actual failure text, mark valid planned checkpoints, add a short inspection/open beat, and map the event to a distinct audiovisual cue.
 - **Board and accessibility:** render a strong arch/checkpoint silhouette with a permanent numeral, full accessible label, non-color open state, and rules/legend copy.
 - **Level designer:** add three brushes with threshold-specific names and glyphs. Exported static maps continue to use one character per tile.
-- **Validation:** test under-, exact-, and over-strength entry; reducer/trace parity; intended-route replay; exact uniqueness; threshold coverage; and meaningful use rather than decorative placement.
+- **Validation:** test under-, exact-, and over-strength entry; reducer/trace parity; winning-witness and reference-route replay; threshold coverage; and meaningful use rather than decorative placement. Do not count or reject alternative winning routes.
 
 ## Rejection record
 

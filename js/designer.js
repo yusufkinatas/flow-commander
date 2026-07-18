@@ -358,7 +358,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     renderSelect();
     renderGrid();
     refreshExport();
-    setStatus("Paint a route, then analyze it for a unique solution.");
+    setStatus("Paint a route, then analyze it to confirm the level can be won.");
   }
 
   function resizeMap() {
@@ -382,21 +382,19 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   }
 
   function analyzeActiveDesign() {
-    setStatus("Exploring every legal route…", "working");
+    setStatus("Searching for a legal winning route…", "working");
     dom.analyze.disabled = true;
     window.setTimeout(() => {
       try {
         const level = parseActiveDesign();
-        const analysis = analyzeLevel(level, { solutionLimit: 2, nodeLimit: 350_000 });
+        const analysis = analyzeLevel(level, { solutionLimit: 1, nodeLimit: 350_000 });
         const metrics = analysis.metrics;
-        if (metrics.aborted) {
-          setStatus(`Search reached 350,000 routes. The map is too open to prove uniqueness; add walls or constraints.`, "error");
-        } else if (analysis.solutionCount === 0) {
-          setStatus(`No solution found after ${metrics.nodesExpanded.toLocaleString()} checks. Open a route or change the resource order.`, "error");
-        } else if (analysis.solutionCount > 1) {
-          setStatus(`Multiple solutions found. Add a meaningful constraint; two routes appeared within ${metrics.nodesExpanded.toLocaleString()} checks.`, "error");
+        if (analysis.solvable) {
+          setStatus(`Winning route found · ${metrics.solutionDepth} moves · ${metrics.solutionTurns} turns · alternative routes are allowed.`, "success");
+        } else if (metrics.aborted) {
+          setStatus(`No winning route was found within 350,000 checks. Simplify the search or verify the map another way.`, "error");
         } else {
-          setStatus(`Unique solution proven · ${metrics.solutionDepth} moves · ${metrics.solutionTurns} turns · complexity ${metrics.complexityScore}.`, "success");
+          setStatus(`No solution found after ${metrics.nodesExpanded.toLocaleString()} checks. Open a route or change the resource order.`, "error");
         }
       } catch (error) {
         setStatus(error instanceof Error ? error.message : "This map could not be analyzed.", "error");

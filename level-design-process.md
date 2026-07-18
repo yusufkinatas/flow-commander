@@ -6,7 +6,7 @@ The central rule is simple:
 
 > Automation proves that a level works under the production rules. A separate reviewer decides whether the level is worth playing.
 
-Neither half replaces the other. A uniquely solvable level can still be obscure, repetitive, decorative, or tedious; an elegant-looking level can still contain a shortcut or depend on behavior that planning and execution simulate differently.
+Neither half replaces the other. A solvable level can still be obscure, repetitive, decorative, or tedious; an elegant-looking level can still be impossible or depend on behavior that Planning and Execution simulate differently. Multiple winning routes are allowed: open fields, symmetric traversal orders, and equivalent geometric variations are not defects.
 
 The Pack 5 artifacts are useful worked examples:
 
@@ -25,15 +25,15 @@ Before production begins, agree on these outcomes:
 2. Give every level one sentence of purpose, one primary learning claim, and one campaign role.
 3. Freeze the campaign roster, mechanic matrix, cadence, and exact complexity distribution before authoring maps.
 4. Require every accepted level to parse, solve, and replay through production rules.
-5. Prove the required number of solutions. If the game promises one true route, enumerate to completion and prove exactly one.
-6. Require the exhaustive solution to match the declared intended route.
-7. Prove that featured mechanics constrain the solution; merely walking over a tile is not meaningful use.
+5. Prove that every level has at least one valid winning route. Stop after the first deterministic witness; do not enumerate or score the number of alternatives.
+6. When a designer declares a reference route, require it to win independently. It is an example and may differ from the solver's first witness.
+7. Prove rule behavior and required events with production code; have the reviewer judge whether featured mechanics are meaningfully used.
 8. Keep the Level Designer and Game Design Reviewer separate. Reviewers judge and record; they do not silently fix the map.
 9. Resubmit every changed level until its reviewer explicitly approves it.
-10. Treat solver metrics as diagnostic evidence, not as a single score for human difficulty.
+10. Treat first-witness solver metrics as diagnostic evidence, not as a route-count requirement or a single score for human difficulty.
 11. Preserve rejected candidates, revisions, exemptions, and known calibration risks in written records.
 
-If a future campaign intentionally allows several solutions, change the numerical solution contract in the specification. Do not weaken the rest of the process: the allowed solution set must still be exhaustively known, intentional, replayable, and reviewed.
+This project does not use a numerical solution contract. One, ten, or hundreds of winning routes are equally acceptable. Validation exists to prevent impossible levels, not to collapse maps into corridors. A reviewer may still reject a confusing or trivial layout, but the mere existence of another winning route is never a failure.
 
 ### Campaign parameters
 
@@ -43,7 +43,7 @@ Write these at the top of the frozen specification so this playbook adapts to th
 |---|---|
 | Level count and arc shape | `10`, `25`, or another explicit structure |
 | New-mechanic count | `0`, `1`, or a named ordered set |
-| Solution contract | exactly one, a bounded intentional set, or another exhaustively testable rule |
+| Solvability contract | at least one winning route; alternatives unrestricted and uncounted |
 | Human-playtest policy | required, optional, or prohibited for this run |
 | Complexity budget | exact count at every rating |
 | Solver budget | node/time limits and required evidence |
@@ -71,9 +71,9 @@ The Lead may author a level, but must not be that level's final reviewer.
 The Level Designer owns a level's design claim and implementation.
 
 - Authors the smallest map that expresses the assigned learning purpose.
-- Declares the intended route before review.
+- Declares an optional reference winning route before review, or records the solver witness.
 - Supplies metadata, briefing, hint, thesis, mechanics, dependency depth, and cognitive-load estimate.
-- Runs parser, solver, replay, event, and ablation checks before requesting review.
+- Runs parser, first-witness solver, replay, event, and immutability checks before requesting review.
 - Explains why each branch and interactive tile exists.
 - Revises the level in response to actionable feedback and resubmits it.
 
@@ -84,11 +84,11 @@ Designers do not approve their own work.
 The Reviewer owns the quality judgment, not the implementation.
 
 - Reads the frozen campaign slot before judging the map.
-- Inspects solver evidence and the intended route.
+- Inspects the solver witness and any declared reference route.
 - Evaluates teaching clarity, fairness, novelty, elegance, pacing, copy, and curve placement.
-- Checks that the mechanic's idea—not merely its tile—is necessary.
+- Checks that the mechanic's idea—not merely its tile—supports the level's thesis.
 - Returns exactly `APPROVED` or `CHANGES REQUIRED`, with a concrete reason.
-- Records any narrowly justified ablation exemption.
+- Treats optional ablation only as diagnostic context, never as a route-count gate.
 - Makes no file edits to the level under review.
 
 The same reviewer may review several levels, but should actively compare them for repeated masks, decision structures, and lessons.
@@ -99,7 +99,7 @@ Automation is an evidence-producing part of the process, not a creative role. It
 
 ### Fresh-player playtesters
 
-Fresh-player testing happens after deterministic acceptance, unless a project constraint explicitly forbids it. Playtesters calibrate comprehension, delight, perceived difficulty, and hint quality. They do not replace exhaustive correctness checks.
+Fresh-player testing happens after deterministic acceptance, unless a project constraint explicitly forbids it. Playtesters calibrate comprehension, delight, perceived difficulty, and hint quality. They do not replace deterministic solvability and replay checks.
 
 ## Required artifacts
 
@@ -110,7 +110,7 @@ Use project-specific names, but keep these responsibilities separate:
 | `CAMPAIGN_RESEARCH.md` | Before mechanic selection | External findings translated into project rules |
 | `MECHANIC_ROSTER.md` | Before implementation, when adding mechanics | Candidate comparison, finalists, selections, rejection reasons, exact rules |
 | `CAMPAIGN_SPEC.md` | Before map authoring | Level count, roles, curve, complexity budget, mechanic matrix, per-level purposes |
-| Level source files | During authoring | Maps, intended routes, metadata, reviewed exemptions |
+| Level source files | During authoring | Maps, optional reference routes, and metadata |
 | `REVIEW_RECORD.md` | Throughout authoring | Initial decisions, requested changes, responses, final approvals |
 | `LEVEL_REPORT.md` | At integration | Per-level solver evidence, aggregate figures, outliers, limitations |
 | Automated validators | Before and during authoring | Executable acceptance contract |
@@ -128,7 +128,7 @@ Before inventing mechanics, establish the game's actual design grammar.
 - Which information is visible in Planning, and what happens in Execution?
 - Which reducer and solver define production truth?
 - Which mechanics were recently taught and should not be blurred by overlap?
-- Which route contracts must remain intact: adjacency, no revisits, deterministic order, one route, or another invariant?
+- Which route contracts must remain intact: adjacency, no revisits, deterministic order, or another movement invariant?
 - Which UI, input, accessibility, audio, and level-editor surfaces must support a new rule?
 - Which symbols and subsystems are out of scope for this campaign?
 - What node limits and test times are acceptable for exhaustive validation?
@@ -209,7 +209,7 @@ Skip this phase when `new-mechanic count = 0`. Otherwise, build each selected me
 
 - Parser and legal tile definitions
 - Production state reducer and fresh events
-- Solver state and enumeration
+- Solver state and first-witness search
 - Planning preview and invalid-route explanation
 - Execution replay and audiovisual event mapping
 - Board rendering and non-color state cues
@@ -312,16 +312,15 @@ Write or extend validators before bulk authoring. A future change should fail lo
 ### Per-level automated gates
 
 1. The production parser accepts a rectangular map with legal symbols and required start/goal entities.
-2. The declared intended route reconstructs a valid path.
-3. The intended route wins through the production trace.
-4. Exhaustive enumeration completes below a declared node limit.
-5. The level has exactly the allowed solution count.
-6. The exhaustive route or route set exactly matches the declared intention.
-7. Repeated traces are deterministic.
-8. Trace and execution simulation are event-for-event identical.
-9. Analysis and replay do not mutate level data or input state.
-10. The winning trace emits every event implied by the declared mechanic matrix.
-11. Each featured mechanic satisfies the ablation rules below.
+2. The production solver finds at least one winning route below a declared node limit and stops at that first witness.
+3. The solver witness wins when replayed through the production trace.
+4. Any declared reference route reconstructs a valid path and wins independently; it need not match the solver witness.
+5. Repeated traces of the same route are deterministic.
+6. Trace and execution simulation are event-for-event identical.
+7. Analysis and replay do not mutate level data or input state.
+8. A documented winning trace emits every event implied by the declared mechanic matrix.
+
+The validator must not exhaustively enumerate alternatives, compare the witness with every possible route, or fail because it finds a second solution. If the node limit is reached before a witness is found, the result is inconclusive and the level does not pass until the search is improved or a production-rule reference route is verified directly.
 
 ### Campaign-level automated gates
 
@@ -336,27 +335,11 @@ Write or extend validators before bulk authoring. A future change should fail lo
 - Peak-clustering limit
 - All levels included in whole-game replay tests
 
-### Ablation: prove necessity, not presence
+### Mechanic evidence without route-count gates
 
-For each featured mechanic:
+Automation should prove that mechanic rules behave correctly and that a documented winning trace exercises the interactions claimed by the level. It must not use total solution count, exact route-set comparison, or individual-tile ablation as an acceptance gate. Those checks reward walls and corridors even when open or symmetric layouts express the same puzzle cleanly.
 
-1. Replace all instances with neutral terrain and re-run the solver.
-2. Require the solution space to change: another route appears, the intended route changes, or the level becomes impossible.
-3. Remove each interactive instance individually and re-run the solver.
-4. Require each instance to constrain the route independently.
-5. Also ablate coupled systems as a pair and separately—for example, a switch, its gate, and the switch/gate pair.
-
-The default response to a non-constraining tile is to delete it or revise the map so it rejects a concrete counter-history.
-
-An exception is allowed only when all of these are true:
-
-- it is an intentional on-route teaching demonstration or a repeated interface across parallel alternatives;
-- the mechanic family still changes the level's solution space;
-- at least one instance of each featured new mechanic independently constrains the level;
-- the reviewer explicitly accepts the teaching or parallel-audit purpose; and
-- a substantive coordinate-specific exemption is stored in level metadata and the review record.
-
-Never use an exemption to protect decoration, compensate for a weak level, or excuse an accidental duplicate.
+Targeted ablation may still be used as optional diagnostic evidence when a designer wants to understand a tile's role. Its result goes to the reviewer; it never fails a level merely because another winning route exists or because neutralizing a tile preserves solvability. The reviewer decides whether a mechanic is meaningful by inspecting the level's thesis, player decisions, event trace, and plausible counter-histories.
 
 ## Phase 5 — Run the per-level design and review loop
 
@@ -379,12 +362,13 @@ Target complexity / dependency depth: […]
 Counter-histories the map must reject: […]
 ```
 
-A **counter-history** is a plausible resource or route history that would solve the map if a particular constraint were absent. Designing concrete counter-histories produces stronger necessity than scattering extra gates onto a corridor.
+A **counter-history** is a plausible resource or ordering history that would bypass a level's central idea if a particular constraint were absent. Counter-histories concern the puzzle's logic, not harmless geometric variations such as drawing the same rectangle clockwise or counterclockwise.
 
 ### Step 3: Author the smallest expressive map
 
 - Start from the decisions, not the decorative shape.
 - Prefer compact branches whose outcomes fail for different readable reasons.
+- Use open fields, loops, and symmetric traversal where they improve expression; equivalent winning geometry is allowed.
 - Couple systems through a shared resource, access dependency, or ordering consequence.
 - Keep the whole relevant state mentally inspectable.
 - Remove travel that adds no decision, recall beat, or presentation value.
@@ -399,7 +383,7 @@ At minimum, store:
   id,
   name,
   map,
-  intendedRoute,
+  referenceRoute, // optional known winner; legacy `intendedRoute` has the same non-exclusive meaning
   arc,
   role,
   mechanics,
@@ -409,24 +393,23 @@ At minimum, store:
   dependencyDepth,
   briefing,
   tip,
-  checkpointExemptions // normally absent
 }
 ```
 
-The route is not “whatever the solver finds.” It is the design claim the solver must verify.
+A reference route is one documented way to demonstrate the design claim. It is not the only permitted route, and it does not need to match the solver's first witness.
 
 ### Step 5: Run the Designer self-check
 
 Before review, the Designer verifies:
 
 - [ ] The level fulfills the frozen slot rather than a more convenient idea.
-- [ ] Every featured mechanic is consequential.
-- [ ] Every branch and interactive tile has a named purpose.
-- [ ] Required events occur in the intended trace.
+- [ ] Every featured mechanic supports the level's thesis on at least one documented winning route.
+- [ ] Every interactive tile has a named purpose; equivalent geometric alternatives do not need separate justification.
+- [ ] Required events occur in a documented winning trace.
 - [ ] No unannounced mechanic appears inside a dense puzzle.
 - [ ] The briefing states the objective without giving away the route.
 - [ ] The tip asks a useful reasoning question rather than states the answer.
-- [ ] The parser, exhaustive solver, intended-route, replay, immutability, and ablation gates pass.
+- [ ] The parser, first-witness solver, reference-route, replay, event, and immutability gates pass.
 - [ ] The map is not a reskin of an earlier topology or decision sequence.
 - [ ] Route length is proportional to the reasoning, not masking a shallow puzzle.
 
@@ -437,12 +420,12 @@ Before review, the Designer verifies:
 
 - Slot / thesis: […]
 - Intended realization: […]
-- Intended route: `[…]`
+- Reference winning route, if authored: `[…]`
 - Key decision points: […]
 - Counter-histories and what rejects them: […]
 - Required event evidence: […]
-- Solver: [solutions, nodes, branches, dead ends, length, turns]
-- Ablation: [all-feature result; each-instance result]
+- Solver: [winning witness found, nodes before witness, branches, dead ends, length, turns]
+- Mechanic evidence: [events on the witness/reference trace; optional diagnostic ablation]
 - Authored complexity / dependency depth: […]
 - Known concern: […]
 ```
@@ -461,8 +444,8 @@ Verdict: APPROVED | CHANGES REQUIRED
 - Novelty versus neighboring levels: PASS / issue
 - Cause-and-effect and copy: PASS / issue
 - Curve placement and authored complexity: PASS / issue
-- Exact solver and intended-route evidence: PASS / issue
-- Mechanic and tile necessity: PASS / issue
+- Solvability and reference-route evidence: PASS / issue
+- Mechanic meaning and event evidence: PASS / issue
 - Planning/execution parity: PASS / issue
 
 Required changes:
@@ -475,7 +458,7 @@ Reviewers should return a decision, not brainstorm indefinitely. `CHANGES REQUIR
 
 ### Step 8: Revise and resubmit
 
-The Designer records the important response, reruns every affected automated gate, and sends the level back to a separate Reviewer. A previous approval is void after a material map, route, rule, metadata, or hint change.
+The Designer records the important response, reruns every affected automated gate, and sends the level back to a separate Reviewer. A previous approval is void after a material map, reference route, rule, metadata, or hint change.
 
 ```md
 | ID | Initial decision | Important response | Final decision and justification |
@@ -485,31 +468,30 @@ The Designer records the important response, reruns every affected automated gat
 
 ### Step 9: Freeze the approved level
 
-After approval, only integration fixes that preserve the map and design claim may bypass a new design review. Any change to decisions, interactive tiles, route, complexity, teaching copy, or exemption reopens the loop.
+After approval, only integration fixes that preserve the map and design claim may bypass a new design review. Any change to decisions, interactive tiles, reference route, complexity, or teaching copy reopens the loop.
 
 ## Common failure modes and revision rules
 
 | Failure | Evidence | Required response |
 |---|---|---|
 | Duplicate lesson or topology | Same decisions in the same order with new walls or nouns | Rebuild the decision structure; do not merely rotate or reskin it |
-| Decorative mechanic | All-mechanic or single-tile ablation preserves the same unique route | Delete the tile or add a readable counter-history it uniquely rejects |
+| Decorative mechanic | The documented winning trace never exercises it, or the reviewer cannot connect it to the thesis | Delete it or give it a clear teaching, decision, or presentation purpose |
 | Serial checklist | The route collects keys/resources in an obvious corridor | Couple choices through shared resources, access, or competing order constraints |
 | Length masquerading as difficulty | Long solution, few meaningful branches, shallow dependency | Compress corridors and retain only decision-bearing space |
-| Accidental shortcut | Solver finds a route other than `intendedRoute` | Revise topology or rules, then repeat proof and review |
+| Alternative winning geometry | Solver finds a route other than the reference route | No automatic change; alternatives are valid unless review shows they bypass the level's central idea |
 | Mechanic appears but its idea is unnecessary | Required event fires, yet the route works without the conceptual constraint | Redesign around a counter-history; event presence alone is insufficient |
 | Ambiguous teaching example | Several explanations fit the first successful route | Isolate the rule and remove unrelated interactions |
 | Hint gives away the solution | Copy names the correct branch, resource, or order | Replace it with a question that directs attention to relevant state |
 | Peak built from “everything at once” | Many unrelated systems with no central thesis | Remove systems until one synthesis insight dominates |
 | Breather is only shorter | Route length drops but tracking or dependency remains high | Reduce decisions, state ledgers, or interaction novelty |
 | High authored load, small search tree | Reviewer finds a compact but non-obvious realization | May remain; flag “concept > search” for playtest calibration |
-| High solver effort, modest concept | Many geometric paths around one simple idea | Simplify topology or flag “topology > concept”; do not inflate authored difficulty automatically |
-| Non-constraining repeated teaching marker | Individual ablation does not change route | Allow only through the narrow documented exemption process |
+| Slow first-witness search, modest concept | Search order explores much geometry before finding one simple idea | Improve solver heuristics or flag “topology > search”; do not wall off valid space merely to lower the metric |
 
 When revising a weak level, prioritize correctness and teaching before metric tuning:
 
 1. rule and preview fidelity;
-2. exact solution and intended-route identity;
-3. mechanic necessity and counter-histories;
+2. solvability and reference-route replay;
+3. mechanic behavior, meaning, and counter-histories;
 4. purpose, legibility, and fairness;
 5. novelty and topology;
 6. compression and copy;
@@ -532,17 +514,16 @@ Individual approvals do not prove that the campaign works as a sequence. The Lea
 - [ ] No out-of-scope tile family slipped into the campaign
 - [ ] Every level retains a substantive thesis and valid metadata
 
-### Exact solver and replay audit
+### Solvability and replay audit
 
-- [ ] Exhaustive analysis completes for every level below the production node limit
-- [ ] Every solution count matches the campaign contract
-- [ ] Every exhaustive solution matches declared intent
-- [ ] Every intended route wins through the production reducer
+- [ ] The solver finds a winning witness for every level below the production node limit
+- [ ] No validator counts alternatives or rejects a level for multiple winning routes
+- [ ] Every solver witness wins through the production reducer
+- [ ] Every declared reference route wins through the production reducer
 - [ ] Trace and simulation are deeply equal
 - [ ] Repeated runs are deterministic and inputs remain immutable
 - [ ] Every declared interaction emits the required event
-- [ ] All-mechanic, individual-instance, and coupled-system ablations pass
-- [ ] Every exemption references a real tile and a recorded approval
+- [ ] Every declared mechanic event occurs on a documented winning trace
 - [ ] Whole-game flow tests include the new campaign
 
 ### Cross-level editorial audit
@@ -563,22 +544,21 @@ Keep raw measurements next to authored estimates so future maintainers can see d
 ### Per-level report template
 
 ```md
-| ID | Level | Solutions | Length | Nodes / branches | Dead ends | Dependency | Complexity | Difficulty | Ablated solutions | Flag |
-|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| […] | […] | 1 | […] | […] / […] | […] | […] | […] | […] | […] | — |
+| ID | Level | Solvable | Witness length | Nodes before witness | Dependency | Complexity | Difficulty | Flag |
+|---:|---|---|---:|---:|---:|---:|---:|---|
+| […] | […] | yes | […] | […] | […] | […] | […] | — |
 ```
 
 Useful measures include:
 
-- solution count;
-- path length and turns;
-- expanded nodes, branch nodes, and dead ends;
-- search ratio or another exploration measure;
+- whether a winning witness was found within the node budget;
+- witness path length and turns;
+- expanded nodes, branch nodes, and dead ends before the witness;
 - number of meaningful interactions;
 - authored dependency depth;
 - authored cognitive complexity;
 - campaign difficulty position; and
-- solution counts or route changes under ablation.
+- optional diagnostic observations that do not depend on counting routes.
 
 Report totals and maxima, not only per-level rows. Explicitly flag cases where conceptual difficulty exceeds solver search, or geometry inflates search beyond the actual idea.
 
@@ -586,7 +566,7 @@ Report totals and maxima, not only per-level rows. Explicitly flag cases where c
 
 Every report should say what its evidence does **not** prove. A suitable default is:
 
-> Exhaustive uniqueness proves correctness under production rules, not fresh-player comprehension, enjoyment, or perceived difficulty. Solver nodes are topology-sensitive, while authored complexity and dependency estimates remain hypotheses until observed with players.
+> A winning witness proves that the level is possible under production rules. It does not prove uniqueness, completeness, fresh-player comprehension, enjoyment, or perceived difficulty. First-witness solver nodes are topology- and traversal-order-sensitive, while authored complexity and dependency estimates remain hypotheses until observed with players.
 
 If manual or browser playtesting was prohibited, say so directly and carry human calibration as a residual risk.
 
@@ -605,7 +585,7 @@ Record:
 - fatigue across peaks and recovery after breathers; and
 - accessibility or input barriers unrelated to the intended puzzle.
 
-Revise the campaign order, copy, or maps when evidence shows a conceptual leap, repeated confusion, or misplaced peak. Then rerun deterministic proof, ablation, report generation, and independent review for every affected level.
+Revise the campaign order, copy, or maps when evidence shows a conceptual leap, repeated confusion, or misplaced peak. Then rerun deterministic solvability, replay/event checks, report generation, and independent review for every affected level.
 
 ## Parallel sub-agent workflow
 
@@ -632,18 +612,18 @@ Keep one shared ledger so ownership and approval state never depend on chat hist
 | 01–05 | agent-a | agent-c | `levels/01-*` … | 2 | In review | `reviews/01-05-r2.md` | — |
 ```
 
-Allowed statuses should be small and explicit: `ASSIGNED`, `DESIGNING`, `SELF-CHECKED`, `IN REVIEW`, `CHANGES REQUIRED`, or `APPROVED`. Change file ownership only through the Lead, and increment the revision whenever a reviewed map or its intended route changes.
+Allowed statuses should be small and explicit: `ASSIGNED`, `DESIGNING`, `SELF-CHECKED`, `IN REVIEW`, `CHANGES REQUIRED`, or `APPROVED`. Change file ownership only through the Lead, and increment the revision whenever a reviewed map or its reference route changes.
 
 ### Copy-ready Designer assignment
 
 ```md
-You are the Level Designer for [IDs/range]. Read the frozen campaign specification and current production rules. Edit only [owned files]. For every slot, author the smallest fair level that fulfills its stated purpose; declare the intended route and key realization; run parser, exhaustive solver, replay/parity, event, and ablation checks; then submit the evidence-packet template. Do not approve your own work or modify another range. If the frozen slot conflicts with the game, stop and report the conflict to the Lead instead of redefining it.
+You are the Level Designer for [IDs/range]. Read the frozen campaign specification and current production rules. Edit only [owned files]. For every slot, author a fair level that fulfills its stated purpose; open fields, loops, symmetric shapes, and multiple winning routes are allowed. Record an optional reference winning route and the key realization; run parser, first-winning-witness, replay/parity, event, and immutability checks; then submit the evidence-packet template. Never enumerate, minimize, or reject alternative winning routes. Do not approve your own work or modify another range. If the frozen slot conflicts with the game, stop and report the conflict to the Lead instead of redefining it.
 ```
 
 ### Copy-ready Reviewer assignment
 
 ```md
-You are the independent Game Design Reviewer for [IDs/range]. Do not edit level files. Compare each current revision with its frozen slot, intended route, solver/replay evidence, mechanic necessity, neighboring levels, and campaign curve. Return exactly APPROVED or CHANGES REQUIRED per level, followed by a concise evidence-based reason and specific revision requests. Approval applies only to the reviewed revision; any later map, route, rule, or metadata change requires resubmission.
+You are the independent Game Design Reviewer for [IDs/range]. Do not edit level files. Compare each current revision with its frozen slot, optional reference route, solver/replay evidence, meaningful mechanic use, neighboring levels, and campaign curve. Multiple winning routes are allowed and are not a defect by themselves. Return exactly APPROVED or CHANGES REQUIRED per level, followed by a concise evidence-based reason and specific revision requests. Approval applies only to the reviewed revision; any later map, reference route, rule, or metadata change requires resubmission.
 ```
 
 ## Release checklist
@@ -666,12 +646,12 @@ You are the independent Game Design Reviewer for [IDs/range]. Do not edit level 
 
 ### Every level
 
-- [ ] Parses and exhaustively solves
-- [ ] Has the allowed solution count
-- [ ] Exhaustive solution matches `intendedRoute`
+- [ ] Parses and yields at least one winning witness within the node limit
+- [ ] Does not count or reject alternative winning routes
+- [ ] Any declared reference route wins independently
 - [ ] Trace wins and equals execution replay
 - [ ] Declared events occur
-- [ ] Featured mechanics and individual tiles pass ablation, or a narrow exemption is approved and recorded
+- [ ] A documented winning trace demonstrates declared mechanic events; the reviewer accepts their purpose
 - [ ] Designer self-check is complete
 - [ ] Separate Reviewer explicitly approved the current revision
 
@@ -690,7 +670,7 @@ A campaign is done only when:
 
 1. every selected new mechanic, if any, is implemented consistently across every production surface;
 2. every frozen campaign slot is filled by an independently approved level;
-3. exhaustive solver, intended-route, replay, event, immutability, and ablation gates pass;
+3. first-winning-witness, reference-route, replay, event, and immutability gates pass without counting alternatives;
 4. the exact curve and complexity budget survive integration;
 5. the research, roster, specification, review record, and solver report agree with the shipped data;
 6. known human-calibration limits are explicit; and

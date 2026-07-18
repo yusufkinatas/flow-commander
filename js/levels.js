@@ -145,7 +145,7 @@ const RAW_LEVELS = [
     name: "Commander's Gauntlet",
     difficulty: 10,
     mechanic: "The whole campaign",
-    briefing: "Four decisions. Two seals. Three specialist duties. One route worthy of a commander.",
+    briefing: "Four decisions. Two seals. Three specialist duties. A route worthy of a commander.",
     tip: "Work backward from the banner: three soldiers, builder, mage, Moon, then Sun.",
     map: [
       "#####################",

@@ -9,7 +9,7 @@ This assessment records the game as it existed before the planning/execution ref
 
 The project is a dependency-free browser game. `index.html` owns the document structure, `styles.css` owns the complete visual system, and the JavaScript is split into three main layers:
 
-- `js/engine.js` is the pure rules and search layer. It defines tiles, parses level data, reduces one tile transition, simulates complete paths, and exhaustively searches for solutions.
+- `js/engine.js` is the pure rules and search layer. It defines tiles, parses level data, reduces one tile transition, simulates complete paths, and searches for winning routes.
 - `js/game.js` is the browser session controller and renderer. It owns input, current routes, DOM rendering, synthesized audio, local progress, hints, and victory.
 - `js/levels.js` and `js/packs/*.js` contain authored campaign data. `js/designer.js` provides the browser-saved level workshop.
 
@@ -88,7 +88,7 @@ Existing animation primitives include party step/win motion, follower bobbing, p
 
 ## Automated tools and baseline
 
-`npm test` runs `tests/validate-levels.mjs`. At baseline it proved all 24 levels uniquely solvable with exhaustive search, replayed solutions through production rules, checked convoy non-crossing and beacons, checked required pack mechanics, proved healer necessity for Pack 4, checked one reversed convoy order, and verified workshop exports. Runtime was about 0.5 seconds; the largest search expanded 265,198 nodes.
+`npm test` runs `tests/validate-levels.mjs`. It finds at least one winning witness for every level, replays that witness through production rules, checks convoy non-crossing and beacons, checks required pack mechanics, proves healer necessity for Pack 4, checks one reversed convoy order, and verifies workshop exports. Alternative winning routes are allowed and are not counted.
 
 The analyzer reports expanded nodes, dead ends, branch nodes, pruning, maximum depth/branching, solution length, turns, search ratio, and a heuristic complexity score. `tests/curate-relief.mjs` is a deterministic terrain-variant curator, but is not part of `npm test`.
 
@@ -96,9 +96,9 @@ Current test limitations:
 
 - No DOM, input, animation, or audio tests exist.
 - Pack counts are hard-coded as `[10, 6, 5, 3]`.
-- Every pack must have nondecreasing authored difficulty, and Packs 2–4 must have strictly increasing computed complexity. A campaign with deliberate breather levels needs Pack 5-specific curve assertions.
+- Most packs retain nondecreasing authored difficulty, while Pack 5 has explicit sawtooth-curve assertions. First-witness search metrics are diagnostic only and do not gate the authored difficulty order.
 - The parser does not fully validate metadata types, contiguous IDs, declared mechanic use, or pack schema.
-- The DFS reports a first solution and can prove uniqueness, but it does not find a shortest route or count every alternative efficiently.
+- The DFS reports the first deterministic winning witness it encounters. It intentionally does not find a shortest route, count alternatives, or treat the first witness as the only valid solution.
 
 ## Correctness issues to resolve before replay
 

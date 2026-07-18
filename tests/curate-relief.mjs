@@ -1,7 +1,8 @@
 import { analyzeLevel, parseLevel } from "../js/engine.js";
 
 // Deterministic mixed-authorship helper: keep authored objectives fixed, vary only
-// meadow/wild tiles, then exhaustively retain layouts with exactly one route.
+// meadow/wild tiles, then retain every layout for which the production solver
+// can find at least one winning route. Alternative winning routes are allowed.
 const SCENARIOS = {
   2: { width: 9, height: 6, start: [1, 1], goal: [1, 7], targets: [[2, 3, "H"]], maxMoves: 10, wallChance: 0.24 },
   3: { width: 11, height: 7, start: [1, 1], goal: [4, 9], targets: [[1, 5, "h"], [3, 3, "h"], [4, 7, "h"]], maxMoves: 15, wallChance: 0.27 },
@@ -39,8 +40,8 @@ for (let attempt = 0; attempt < attempts; attempt += 1) {
   } catch {
     continue;
   }
-  const analysis = analyzeLevel(level, { solutionLimit: 2, nodeLimit: 250_000 });
-  if (!analysis.unique) continue;
+  const analysis = analyzeLevel(level, { solutionLimit: 1, nodeLimit: 250_000 });
+  if (!analysis.solvable) continue;
   const openTiles = map.join("").match(/[.SG]/g)?.length ?? 0;
   const rank = analysis.metrics.complexityScore + openTiles * 0.18;
   best.push({ rank, map, metrics: analysis.metrics });

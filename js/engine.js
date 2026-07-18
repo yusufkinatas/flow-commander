@@ -577,8 +577,7 @@ function finalizeAnalysis(level, result, metrics) {
   return {
     ...result,
     levelId: level.id,
-    solutionCount: result.solutions.length,
-    unique: result.solutions.length === 1 && !result.stoppedAtLimit && !metrics.aborted,
+    solvable: result.solutions.length > 0,
     complete: !result.stoppedAtLimit && !metrics.aborted,
     metrics: {
       ...metrics,
@@ -593,7 +592,7 @@ function finalizeAnalysis(level, result, metrics) {
 
 export function analyzeLevel(level, options = {}) {
   const settings = {
-    solutionLimit: options.solutionLimit ?? Number.POSITIVE_INFINITY,
+    solutionLimit: options.solutionLimit ?? 1,
     nodeLimit: options.nodeLimit ?? 2_000_000,
   };
   const metrics = createMetrics(settings.nodeLimit);
@@ -603,7 +602,7 @@ export function analyzeLevel(level, options = {}) {
   return finalizeAnalysis(level, result, metrics);
 }
 
-export function solveLevel(level, limit = 2) {
+export function solveLevel(level, limit = 1) {
   const analysis = analyzeLevel(level, { solutionLimit: limit });
   if (level.mode === "convoy") return analysis.solutions;
   return analysis.solutions.map((solution) => solution.path);

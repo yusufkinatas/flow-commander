@@ -11,7 +11,7 @@ Pack 5 is a static, 25-level campaign built around Formation Checkpoints. A chec
 - Levels 6, 11, 16, and 21 are deliberate breathers below the preceding arc peak.
 - Familiar systems are interleaved only after the checkpoint rule is readable on its own.
 - Each arc ends with synthesis, but no capstone is allowed to become an “everything at once” inventory puzzle.
-- Every level has one intended route, one design thesis, and at least one consequential Formation Checkpoint.
+- Every level has at least one winning route, one design thesis, and at least one meaningful Formation Checkpoint. Existing `intendedRoute` metadata records a reference solution only; it does not exclude alternatives.
 - The difficulty curve is a rising sawtooth. Authored cognitive load is reviewed alongside solver metrics; it is not inferred from route length alone.
 
 ## Mechanic matrix and authored curve
@@ -61,12 +61,12 @@ The required distribution is exact: three complexity-1 levels, seven complexity-
 Every authored candidate must pass all of the following before it can enter the pack:
 
 1. The production parser accepts a rectangular, legal-symbol campaign map with one `S` and one `G`.
-2. Its declared `intendedRoute` replays successfully through `tracePath()` and wins.
-3. Exhaustive production-engine enumeration completes below the node limit and proves exactly one solution.
-4. The exhaustive solution exactly matches `intendedRoute`.
+2. The production solver finds at least one winning route below the node limit, then stops. It does not enumerate or count alternatives.
+3. Its declared `intendedRoute` replays successfully through `tracePath()` and wins as a reference example; the solver witness may be different.
+4. Multiple winning routes, including symmetric traversal orders and open-field variants, are explicitly allowed and must not fail validation.
 5. The winning trace emits at least one `formation` event, with `actual === required` at every checkpoint.
-6. Removing all checkpoints changes the solution space. Each individual checkpoint must also constrain the route unless a reviewer explicitly accepts it as an on-route instructional demonstration, as in the first “inspection does not consume” lesson.
+6. The reference trace demonstrates the declared mechanic events. A reviewer judges whether checkpoint use supports the level's thesis; route-count or route-space ablation is not an acceptance gate.
 7. Trace and simulation are deterministic, immutable, and event-for-event identical across repeated runs.
 8. A separate reviewer records purpose, legibility, novelty, curve placement, and rejected/revised candidates.
 
-Human playtesting remains a post-implementation calibration step. Solver uniqueness proves correctness, not readability or delight.
+Human playtesting remains a post-implementation calibration step. A solver witness proves that the level is possible under production rules, not that it is readable, delightful, difficult, or uniquely solvable.

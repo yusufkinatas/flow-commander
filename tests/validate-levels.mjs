@@ -15,18 +15,15 @@ assert.deepEqual(PACKS.map((pack) => pack.levels.length), [10, 6, 5, 3, 25], "Th
 const report = [];
 for (const pack of PACKS) {
   let previousDifficulty = 0;
-  let previousComplexity = 0;
   for (const level of pack.levels) {
     if (pack.id !== "formation-muster") {
       assert.ok(level.difficulty >= previousDifficulty, `${pack.name} level ${level.id} breaks the authored difficulty ramp.`);
     }
     previousDifficulty = level.difficulty;
 
-    const analysis = analyzeLevel(level, { solutionLimit: 2, nodeLimit: 2_000_000 });
-    assert.equal(analysis.metrics.aborted, false, `${pack.name} level ${level.id} exceeded the exhaustive node limit.`);
-    assert.equal(analysis.complete, true, `${pack.name} level ${level.id} did not finish exhaustive enumeration.`);
-    assert.equal(analysis.solutionCount, 1, `${pack.name} level ${level.id} must have exactly one solution.`);
-    assert.equal(analysis.unique, true, `${pack.name} level ${level.id} failed the uniqueness proof.`);
+    const analysis = analyzeLevel(level, { solutionLimit: 1, nodeLimit: 2_000_000 });
+    assert.equal(analysis.metrics.aborted, false, `${pack.name} level ${level.id} exceeded the node limit before finding a winning route.`);
+    assert.equal(analysis.solvable, true, `${pack.name} level ${level.id} must have at least one winning route.`);
 
     const solution = analysis.solutions[0];
     const paths = level.mode === "convoy" ? solution.routes.map((route) => route.path) : [solution.path];
@@ -69,23 +66,15 @@ for (const pack of PACKS) {
         });
         const noHealerAnalysis = analyzeLevel(withoutHealer, { solutionLimit: 1, nodeLimit: 2_000_000 });
         assert.equal(noHealerAnalysis.metrics.aborted, false, `${pack.name} level ${level.id}'s no-healer proof exceeded the node limit.`);
-        assert.equal(noHealerAnalysis.solutionCount, 0, `${pack.name} level ${level.id} must be impossible without its new recruit.`);
+        assert.equal(noHealerAnalysis.solvable, false, `${pack.name} level ${level.id} must be impossible without its new recruit.`);
       }
-    }
-
-    if (!["green-march", "formation-muster"].includes(pack.id)) {
-      assert.ok(
-        analysis.metrics.complexityScore > previousComplexity,
-        `${pack.name} level ${level.id} must be measurably more complex than the previous level (${analysis.metrics.complexityScore} <= ${previousComplexity}).`,
-      );
-      previousComplexity = analysis.metrics.complexityScore;
     }
 
     report.push({
       pack: `P${pack.number}`,
       level: level.id,
       name: level.name,
-      solutions: analysis.solutionCount,
+      solvable: analysis.solvable,
       nodes: analysis.metrics.nodesExpanded,
       deadEnds: analysis.metrics.deadEnds,
       branches: analysis.metrics.branchNodes,
@@ -123,14 +112,14 @@ assert.doesNotMatch(pack5Tiles, /[hHABXZCV*wc<>^v]/, "The Exacting Muster may on
 // Convoy route geometry is independent of which commander the player selects first.
 const convoySample = PACKS[2].levels[0];
 const reversedConvoy = { ...convoySample, commanders: [...convoySample.commanders].reverse() };
-const reversedAnalysis = analyzeLevel(reversedConvoy, { solutionLimit: 2, nodeLimit: 50_000 });
-assert.equal(reversedAnalysis.unique, true, "Selecting convoy commanders in another order must preserve the unique route set.");
+const reversedAnalysis = analyzeLevel(reversedConvoy, { solutionLimit: 1, nodeLimit: 50_000 });
+assert.equal(reversedAnalysis.solvable, true, "Selecting convoy commanders in another order must preserve solvability.");
 const normalizeRoutes = (solution) => solution.routes
   .map((route) => `${route.commanderId}:${directionsFromPath(route.path)}`)
   .sort();
 assert.deepEqual(
   normalizeRoutes(reversedAnalysis.solutions[0]),
-  normalizeRoutes(analyzeLevel(convoySample, { solutionLimit: 2, nodeLimit: 50_000 }).solutions[0]),
+  normalizeRoutes(analyzeLevel(convoySample, { solutionLimit: 1, nodeLimit: 50_000 }).solutions[0]),
   "Convoy execution order must not change the solution geometry.",
 );
 
@@ -148,8 +137,27 @@ const workshopDesign = normalizeDesign({
 });
 const workshopExport = exportableLevel(workshopDesign);
 assert.equal(workshopExport.difficulty, 2, "Workshop difficulty labels must export as numeric game difficulty.");
-const workshopAnalysis = analyzeLevel(parseLevel(workshopExport), { solutionLimit: 2, nodeLimit: 10_000 });
-assert.equal(workshopAnalysis.unique, true, "A valid workshop export must run through the production uniqueness analyzer.");
+const workshopAnalysis = analyzeLevel(parseLevel(workshopExport), { solutionLimit: 1, nodeLimit: 10_000 });
+assert.equal(workshopAnalysis.solvable, true, "A valid workshop export must have a production-solver winning route.");
+
+// Open geometry is valid. This fixture deliberately has multiple winning
+// paths; acceptance stops at one witness instead of turning alternatives into
+// an error or requiring the designer to add corridor walls.
+const openFieldLevel = parseLevel({
+  id: "open-field-regression",
+  mode: "campaign",
+  map: [
+    "#####",
+    "#S..#",
+    "#...#",
+    "#..G#",
+    "#####",
+  ],
+});
+const openFieldAlternatives = analyzeLevel(openFieldLevel, { solutionLimit: 2, nodeLimit: 10_000 });
+assert.equal(openFieldAlternatives.solutions.length, 2, "The open-field fixture must retain two witnesses to prove alternatives exist.");
+const openFieldAcceptance = analyzeLevel(openFieldLevel, { solutionLimit: 1, nodeLimit: 10_000 });
+assert.equal(openFieldAcceptance.solvable, true, "An open field with alternative winning routes must pass solvability validation.");
 
 console.table(report);
-console.log("✓ 49 levels exhaustively validated · free commander order proven · workshop export verified · all mechanics present");
+console.log("✓ 49 levels have winning routes · open alternatives accepted · free commander order proven · workshop export verified · all mechanics present");

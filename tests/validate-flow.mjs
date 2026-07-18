@@ -57,8 +57,8 @@ let levelCount = 0;
 let routeCount = 0;
 for (const pack of PACKS) {
   for (const level of pack.levels) {
-    const solutions = solveLevel(level, 2);
-    assert.ok(solutions.length > 0, `${pack.name} level ${level.id} needs a solver route for flow verification.`);
+    const solutions = solveLevel(level, 1);
+    assert.ok(solutions.length > 0, `${pack.name} level ${level.id} needs a winning witness for flow verification.`);
     for (const [solutionIndex, solution] of solutions.entries()) {
       if (level.mode === "convoy") {
         for (const route of solution.routes) {

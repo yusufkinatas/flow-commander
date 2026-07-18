@@ -43,7 +43,7 @@ Sources:
 
 Solver cost is useful but is not human difficulty. Chen, White, and Sturtevant found that an uncertainty/entropy measure largely reproduced the instructional order of Witness puzzles and correlated with player ratings. Kristensen, Valdivia, and Burelli show why completion rate alone is too coarse: action distributions reveal how players progress and how move limits shape challenge.
 
-Applied rule: Pack 5 reports path length, turns, expanded nodes, dead ends, branch nodes, search ratio, solution count, mechanic count, dependency depth, and an authored cognitive-load estimate. Ordering decisions use the whole profile. An outlier in any metric receives manual review; an apparently hard level with a low conceptual load may be a breather, while a short route with a hidden dependency may still be a peak.
+Applied rule: Pack 5 reports witness-path length, turns, nodes expanded before finding that witness, dead ends, branch nodes, mechanic count, dependency depth, and an authored cognitive-load estimate. Ordering decisions use the whole profile. Route count is deliberately excluded: geometric alternatives are valid and do not determine human difficulty. An outlier in any metric receives manual review; an apparently hard level with a low conceptual load may be a breather, while a short route with a hidden dependency may still be a peak.
 
 Sources:
 
@@ -51,11 +51,11 @@ Sources:
 - [Jeppe Theiss Kristensen, Arturo Valdivia, and Paolo Burelli, “Statistical Modelling of Level Difficulty in Puzzle Games,” IEEE CoG 2021](https://ieee-cog.org/2021/assets/papers/paper_205.pdf)
 - [Héctor Valenzuela et al., “Evaluating human-like puzzle difficulty from search behavior,” *Entertainment Computing*, 2025](https://doi.org/10.1016/j.entcom.2025.100925) — search exploration correlated with human movement and perceived difficulty, but remains a calibration signal rather than a substitute for players.
 
-### Prove correctness and uniqueness, then review the intended reasoning
+### Prove solvability, then review the level's reasoning
 
-Ishihata and Tokumasu use an exact solver as a building block for generating uniquely solvable Nagareru instances. Exact uniqueness is valuable for a campaign whose promise is “one true route,” but uniqueness alone does not prove that a solution is legible, interesting, or robust against accidental shortcuts.
+Ishihata and Tokumasu use an exact solver as a building block for generating uniquely solvable Nagareru instances. That is useful research context, but uniqueness is the wrong contract for this game: symmetrical shapes, open fields, and equivalent traversal orders can produce many equally valid routes without changing the puzzle's idea.
 
-Applied rule: every accepted level must parse, solve, have exactly one solution under production rules, replay through the same reducer used by planning/execution, and match its declared intended route. Validation also checks mechanic necessity by removing or bypassing the featured interaction where meaningful. The reviewer separately rejects guessy forks, invisible state changes, accidental alternate routes, gratuitous length, and solutions that technically use a tile without requiring its idea.
+Applied rule: every accepted level must parse and yield at least one winning witness under production rules. The search stops after the first witness; alternative routes are neither enumerated nor rejected. Any authored reference route is checked as one valid example, then replayed through the same reducer used by Planning and Execution. The reviewer separately judges clarity, meaningful mechanic use, gratuitous length, and whether the level's central realization is worth playing.
 
 Source:
 
@@ -75,11 +75,11 @@ Sources:
 
 ## Pack 5 curation contract
 
-1. Ship exactly 25 static campaign levels with contiguous IDs and one deterministically reproducible solution each.
+1. Ship exactly 25 static campaign levels with contiguous IDs and at least one deterministically reproducible winning witness each; allow any number of additional winning routes.
 2. Structure five arcs of five levels: introduce, reinforce, twist, combine, synthesize.
 3. Start each new arc below the preceding synthesis peak; preserve a sawtooth curve with deliberate breathers.
 4. Introduce no more than one genuinely new rule at once; use familiar mechanics to reveal its interactions.
-5. Require every declared featured mechanic in the intended solution and reject decorative mechanic placement.
+5. Require every declared featured mechanic on a documented winning trace and reject decorative mechanic placement through review.
 6. Keep state changes previewable, reversible during planning, text-labelled, and mechanically identical in execution.
 7. Use solver metrics to find anomalies and prove correctness; use an independent reviewer to judge clarity, novelty, elegance, and cognitive load.
 8. Retain a rejection log so superficially different but structurally duplicate levels do not return later.

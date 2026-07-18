@@ -44,7 +44,7 @@ Planning emits only the route-draw cue and invalid-route cue. Execution adds var
 
 ## Verification
 
-- `tests/validate-flow.mjs` replays all 33 solver routes across the original 24 levels and proves trace/simulation/reducer state and event parity.
+- `tests/validate-flow.mjs` replays one solver witness for every current level and proves trace/simulation/reducer state and event parity. Additional winning routes are allowed and do not need enumeration.
 - Regression cases cover resource-dependent later moves, no-op tiles not repeating old events, simultaneous relief events, and immutable trace snapshots.
 - Automated local-browser checks covered:
   - stationary real commander and moving ghost;

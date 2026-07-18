@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 4174",
-    "test": "node tests/validate-levels.mjs"
+    "test": "node tests/validate-levels.mjs && node tests/validate-flow.mjs && node tests/validate-ui-contract.mjs"
   }
 }

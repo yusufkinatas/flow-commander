@@ -6,8 +6,8 @@ export const TILE_DEFS = Object.freeze({
   r: { type: "recruit", walkable: true, amount: 1, label: "1 soldier" },
   R: { type: "recruit", walkable: true, amount: 2, label: "2 soldiers" },
   g: { type: "goblin", walkable: true, cost: 1, label: "Goblin · needs 1 soldier" },
-  o: { type: "goblin", walkable: true, cost: 2, label: "Goblin duo · needs 2 soldiers" },
-  t: { type: "goblin", walkable: true, cost: 3, label: "Goblin troop · needs 3 soldiers" },
+  o: { type: "goblin", walkable: true, cost: 2, label: "Orc · needs 2 soldiers" },
+  t: { type: "goblin", walkable: true, cost: 3, label: "Ogre · needs 3 soldiers" },
   m: { type: "mage", walkable: true, label: "Mage" },
   d: { type: "dragon", walkable: true, label: "Dragon · needs a mage" },
   b: { type: "builder", walkable: true, label: "Builder" },
@@ -134,7 +134,7 @@ export function createPartyState(initial = {}) {
     beacons: new Set(initial.beacons ?? []),
     moves: initial.moves ?? 0,
     bonusMoves: initial.bonusMoves ?? 0,
-    events: [...(initial.events ?? [])],
+    events: (initial.events ?? []).map(cloneEvent),
   };
 }
 
@@ -142,13 +142,25 @@ export function clonePartyState(state) {
   return createPartyState(state);
 }
 
+function cloneEvent(event) {
+  const cloned = { ...event };
+  if (event.position) cloned.position = { ...event.position };
+  if (event.targets) cloned.targets = event.targets.map((target) => ({ ...target }));
+  return cloned;
+}
+
+function failedTransition(reason) {
+  return { ok: false, reason, events: [], event: null };
+}
+
 export function enterTile(state, tileCode, position) {
   const tile = TILE_DEFS[tileCode];
   if (!tile?.walkable) {
-    return { ok: false, reason: tile?.type === "hungry" ? "March beside the monster to deliver a meal." : "The thicket is too dense to cross." };
+    return failedTransition(tile?.type === "hungry" ? "March beside the monster to deliver a meal." : "The thicket is too dense to cross.");
   }
 
   const next = clonePartyState(state);
+  const eventStart = next.events.length;
   const baseEvent = { type: tile.type, tile: tileCode, position: { ...position } };
 
   switch (tile.type) {
@@ -159,7 +171,7 @@ export function enterTile(state, tileCode, position) {
     case "goblin":
       if (next.soldiers < tile.cost) {
         const plural = tile.cost === 1 ? "soldier" : "soldiers";
-        return { ok: false, reason: `This goblin guard needs ${tile.cost} ready ${plural} — you have ${next.soldiers}.` };
+        return failedTransition(`This goblin guard needs ${tile.cost} ready ${plural} — you have ${next.soldiers}.`);
       }
       next.soldiers -= tile.cost;
       next.tired += tile.cost;
@@ -170,7 +182,7 @@ export function enterTile(state, tileCode, position) {
       next.events.push(baseEvent);
       break;
     case "dragon":
-      if (next.mages < 1) return { ok: false, reason: "Recruit the mage before facing this dragon." };
+      if (next.mages < 1) return failedTransition("Recruit the mage before facing this dragon.");
       next.mages -= 1;
       next.events.push(baseEvent);
       break;
@@ -187,7 +199,7 @@ export function enterTile(state, tileCode, position) {
       break;
     }
     case "river":
-      if (next.builders < 1) return { ok: false, reason: "A builder is needed to lay a safe bridge here." };
+      if (next.builders < 1) return failedTransition("A builder is needed to lay a safe bridge here.");
       next.builders -= 1;
       next.events.push(baseEvent);
       break;
@@ -198,7 +210,7 @@ export function enterTile(state, tileCode, position) {
     case "gate": {
       if (!next.switches.has(tile.channel)) {
         const name = tile.channel === "sun" ? "Sun" : "Moon";
-        return { ok: false, reason: `The ${name} gate is shut. Find its matching switch first.` };
+        return failedTransition(`The ${name} gate is shut. Find its matching switch first.`);
       }
       next.events.push({ ...baseEvent, channel: tile.channel });
       break;
@@ -225,7 +237,8 @@ export function enterTile(state, tileCode, position) {
       break;
   }
 
-  return { ok: true, state: next, event: next.events.at(-1) ?? null };
+  const events = next.events.slice(eventStart).map(cloneEvent);
+  return { ok: true, state: next, events, event: events.at(-1) ?? null };
 }
 
 export function deliveriesComplete(level, state) {
@@ -259,9 +272,9 @@ export function advanceState(level, state, position, options = {}) {
   const tileCode = level.rows[position.r]?.[position.c];
   const tile = TILE_DEFS[tileCode];
   const commander = options.commander ?? null;
-  if (!tile) return { ok: false, reason: "That square lies beyond the map." };
+  if (!tile) return failedTransition("That square lies beyond the map.");
   if (tile.type === "commanderGoal" && tile.commander !== commander?.id) {
-    return { ok: false, reason: "That standard belongs to another commander." };
+    return failedTransition("That standard belongs to another commander.");
   }
 
   const transition = enterTile(state, tileCode, position);
@@ -272,18 +285,20 @@ export function advanceState(level, state, position, options = {}) {
   const fed = level.mode === "relief" ? feedAdjacentTargets(level, next, position) : [];
   const limit = movementLimit(level, commander, next);
   if (next.moves > limit) {
-    return { ok: false, reason: `That route costs ${next.moves} movement — the limit is ${limit}.` };
+    return failedTransition(`That route costs ${next.moves} movement — the limit is ${limit}.`);
   }
   if (tile.type === "goal" && level.mode === "relief" && !deliveriesComplete(level, next)) {
     const remaining = level.targets.filter((target) => (next.deliveries.get(keyOf(target)) ?? 0) < target.need).length;
-    return { ok: false, reason: `${remaining} hungry monster${remaining === 1 ? " still needs" : "s still need"} a delivery before the banner.` };
+    return failedTransition(`${remaining} hungry monster${remaining === 1 ? " still needs" : "s still need"} a delivery before the banner.`);
   }
 
-  const event = fed.length
-    ? { type: "delivery", targets: fed, position: { ...position } }
-    : transition.event;
-  if (event?.type === "delivery") next.events.push(event);
-  return { ok: true, state: next, event };
+  const events = transition.events.map(cloneEvent);
+  if (fed.length) {
+    const deliveryEvent = { type: "delivery", targets: fed, position: { ...position } };
+    next.events.push(deliveryEvent);
+    events.push(cloneEvent(deliveryEvent));
+  }
+  return { ok: true, state: next, events, event: events.at(-1) ?? null };
 }
 
 export function forcedDirectionAt(level, position) {
@@ -299,13 +314,15 @@ export function moveAllowedFrom(level, from, to) {
   return to.r === from.r + direction.dr && to.c === from.c + direction.dc;
 }
 
-export function simulatePath(level, path, options = {}) {
+export function tracePath(level, path, options = {}) {
   const commander = options.commander ?? (level.mode === "convoy" ? level.commanders[0] : null);
   const start = commander?.start ?? level.start;
   const goal = commander?.goal ?? level.goal;
   let state = createPartyState(commander?.initial);
+  const initialState = clonePartyState(state);
+  const steps = [];
   if (!path.length || !samePosition(path[0], start)) {
-    return { ok: false, state, reason: "A route must begin on the active commander." };
+    return { ok: false, initialState, state, steps, won: false, reason: "A route must begin on the active commander." };
   }
 
   const visited = new Set();
@@ -313,22 +330,44 @@ export function simulatePath(level, path, options = {}) {
     const position = path[index];
     const previous = path[index - 1];
     const positionKey = keyOf(position);
-    if (visited.has(positionKey)) return { ok: false, state, reason: "The route cannot cross itself.", blockedIndex: index };
+    if (visited.has(positionKey)) return { ok: false, initialState, state: clonePartyState(state), steps, won: false, reason: "The route cannot cross itself.", blockedIndex: index };
     if (previous && !moveAllowedFrom(level, previous, position)) {
-      return { ok: false, state, reason: forcedDirectionAt(level, previous) ? "Follow the marching arrow." : "Move one square up, down, left, or right.", blockedIndex: index };
+      return { ok: false, initialState, state: clonePartyState(state), steps, won: false, reason: forcedDirectionAt(level, previous) ? "Follow the marching arrow." : "Move one square up, down, left, or right.", blockedIndex: index };
     }
+    const before = clonePartyState(state);
     const transition = advanceState(level, state, position, { commander, countMove: index > 0 });
-    if (!transition.ok) return { ...transition, state, blockedIndex: index };
+    if (!transition.ok) {
+      return {
+        ...transition,
+        initialState,
+        state: clonePartyState(state),
+        steps,
+        won: false,
+        blockedIndex: index,
+      };
+    }
     state = transition.state;
+    steps.push({
+      index,
+      position: { ...position },
+      tile: level.rows[position.r][position.c],
+      before,
+      after: clonePartyState(state),
+      events: transition.events.map(cloneEvent),
+    });
     visited.add(positionKey);
     if (samePosition(position, goal) && index !== path.length - 1) {
-      return { ok: false, state, reason: "The banner must be the final square.", blockedIndex: index };
+      return { ok: false, initialState, state: clonePartyState(state), steps, won: false, reason: "The banner must be the final square.", blockedIndex: index };
     }
   }
 
   const won = samePosition(path.at(-1), goal)
     && (level.mode !== "relief" || deliveriesComplete(level, state));
-  return { ok: true, state, won };
+  return { ok: true, initialState, state: clonePartyState(state), steps, won };
+}
+
+export function simulatePath(level, path, options = {}) {
+  return tracePath(level, path, options);
 }
 
 export function pathFromDirections(level, directions, commander = null) {

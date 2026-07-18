@@ -14,10 +14,11 @@ Then open `http://127.0.0.1:4174`.
 
 Controls:
 
-- Mouse, touch, or pen: press the active commander and drag through adjacent tiles.
+- Mouse, touch, or pen: press the active commander and drag through adjacent tiles to build a plan.
 - Tap/click an adjacent tile to extend the route one step at a time.
 - Drag back one tile or use **Undo** to retract.
 - Keyboard: arrow keys move, Backspace undoes, `R` resets, and `H` gives a nudge.
+- When a complete plan reaches the objective, review it and press **Solve Puzzle** to watch the real company execute it.
 
 ## Level packs
 
@@ -43,4 +44,6 @@ All art is downloaded into `assets/vendor` and works offline. It is licensed und
 - [Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon), [Tiny Town](https://kenney.nl/assets/tiny-town), [Tiny Farm](https://kenney.nl/assets/tiny-farm), and [Tiny Battle](https://kenney.nl/assets/tiny-battle) by Kenney.
 - [Tiny Creatures](https://opengameart.org/content/tiny-creatures) by Clint Bellanger.
 
-Attribution is not required by the licenses, but is included in the game and here as a courtesy. Pack-specific chiptune music and sound effects are synthesized locally with the Web Audio API; there are no remote runtime dependencies.
+Execution foley comes from Kenney's [RPG Audio](https://kenney.nl/assets/rpg-audio) pack by Kenney Vleugels, also licensed CC0 1.0. The exact local files and cue mappings are recorded in [`assets/audio/README.md`](assets/audio/README.md). Attribution is not required by these licenses, but is included in the game and here as a courtesy.
+
+Pack-specific chiptune music, the commander's wordless vocal cue, and tonal sound accents are synthesized locally with the Web Audio API. All sampled foley is stored in the repository, so the game has no remote runtime dependencies.

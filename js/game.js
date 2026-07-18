@@ -1,6 +1,5 @@
 import {
   TILE_DEFS,
-  advanceState,
   beaconsComplete,
   createPartyState,
   deliveriesComplete,
@@ -12,6 +11,7 @@ import {
   samePosition,
   simulatePath,
   solveLevel,
+  tracePath,
 } from "./engine.js";
 import { PACKS, levelKey } from "./levels.js";
 import { createLevelDesigner } from "./designer.js";
@@ -41,6 +41,32 @@ const ASSETS = Object.freeze({
   ],
 });
 
+const AUDIO_ASSETS = Object.freeze({
+  draw: "./assets/audio/kenney-rpg/metalClick.ogg",
+  footsteps: Object.freeze([
+    "./assets/audio/kenney-rpg/footstep00.ogg",
+    "./assets/audio/kenney-rpg/footstep01.ogg",
+    "./assets/audio/kenney-rpg/footstep02.ogg",
+    "./assets/audio/kenney-rpg/footstep03.ogg",
+    "./assets/audio/kenney-rpg/footstep04.ogg",
+    "./assets/audio/kenney-rpg/footstep05.ogg",
+  ]),
+  soldierPickup: "./assets/audio/kenney-rpg/cloth1.ogg",
+  builderPickup: "./assets/audio/kenney-rpg/cloth2.ogg",
+  healerPickup: "./assets/audio/kenney-rpg/cloth2.ogg",
+  magePickup: "./assets/audio/kenney-rpg/bookOpen.ogg",
+  mageCast: "./assets/audio/kenney-rpg/bookFlip1.ogg",
+  buildStrike: "./assets/audio/kenney-rpg/chop.ogg",
+  bridgeCreak: "./assets/audio/kenney-rpg/creak1.ogg",
+  bridgeSettle: "./assets/audio/kenney-rpg/doorClose_1.ogg",
+  gateOpen: "./assets/audio/kenney-rpg/doorOpen_1.ogg",
+  soldierWindup: "./assets/audio/kenney-rpg/drawKnife1.ogg",
+  soldierImpact: "./assets/audio/kenney-rpg/knifeSlice.ogg",
+  goblinDeath: "./assets/audio/kenney-rpg/dropLeather.ogg",
+  orcDeath: "./assets/audio/kenney-rpg/metalPot2.ogg",
+  largeDeath: "./assets/audio/kenney-rpg/creak3.ogg",
+});
+
 const dom = {
   board: document.querySelector("#gameBoard"),
   boardStage: document.querySelector("#boardStage"),
@@ -48,6 +74,8 @@ const dom = {
   boardFrame: document.querySelector(".board-frame"),
   routeLayer: document.querySelector("#routeLayer"),
   party: document.querySelector("#partyToken"),
+  planningGhost: document.querySelector("#planningGhost"),
+  executionFx: document.querySelector("#executionFxLayer"),
   confetti: document.querySelector("#confettiLayer"),
   levelList: document.querySelector("#levelList"),
   packSelector: document.querySelector("#packSelector"),
@@ -63,6 +91,10 @@ const dom = {
   chapter: document.querySelector("#chapterLabel"),
   status: document.querySelector("#statusText"),
   callout: document.querySelector("#drawCallout"),
+  solve: document.querySelector("#solvePuzzleButton"),
+  companyHeading: document.querySelector("#companyHeading"),
+  companyPhase: document.querySelector("#companyPhase"),
+  companyPhaseText: document.querySelector("#companyPhaseText"),
   soldierCount: document.querySelector("#soldierCount"),
   tiredCount: document.querySelector("#tiredCount"),
   mageCount: document.querySelector("#mageCount"),
@@ -88,6 +120,7 @@ const dom = {
   reset: document.querySelector("#resetButton"),
   hint: document.querySelector("#hintButton"),
   backToDesigner: document.querySelector("#backToDesignerButton"),
+  designer: document.querySelector("#designerButton"),
   sound: document.querySelector("#soundButton"),
   credits: document.querySelector("#creditsButton"),
   closeCredits: document.querySelector("#closeCreditsButton"),
@@ -137,9 +170,12 @@ class Soundboard {
     this.muted = readMuted();
     this.musicTheme = 0;
     this.musicTimer = null;
+    this.preloadedSamples = new Map();
+    this.activeSamples = new Set();
   }
 
   ensure() {
+    this.primeSamples();
     if (this.context) {
       if (this.context.state === "suspended") this.context.resume();
       this.startMusic();
@@ -167,8 +203,36 @@ class Soundboard {
       this.master.gain.cancelScheduledValues(this.context.currentTime);
       this.master.gain.setTargetAtTime(this.muted ? 0 : 0.24, this.context.currentTime, 0.02);
     }
+    this.activeSamples.forEach((sample) => { sample.muted = this.muted; });
     if (!this.muted) this.scheduleMusic();
     return this.muted;
+  }
+
+  primeSamples() {
+    const sources = Object.values(AUDIO_ASSETS).flat();
+    sources.forEach((src) => {
+      if (this.preloadedSamples.has(src)) return;
+      const sample = new Audio(src);
+      sample.preload = "auto";
+      this.preloadedSamples.set(src, sample);
+    });
+  }
+
+  sample(cue, step = 0, options = {}) {
+    if (this.muted) return;
+    const source = AUDIO_ASSETS[cue];
+    const src = Array.isArray(source) ? source[step % source.length] : source;
+    if (!src) return;
+    const sample = new Audio(src);
+    sample.preload = "auto";
+    sample.volume = Math.min(1, options.volume ?? 0.32);
+    sample.playbackRate = options.rate ?? 1;
+    sample.muted = this.muted;
+    this.activeSamples.add(sample);
+    const release = () => this.activeSamples.delete(sample);
+    sample.addEventListener("ended", release, { once: true });
+    sample.addEventListener("error", release, { once: true });
+    sample.play().catch(release);
   }
 
   setTheme(theme) {
@@ -267,34 +331,83 @@ class Soundboard {
   play(cue, step = 0) {
     this.ensure();
     switch (cue) {
+      case "draw":
+        this.sample("draw", step, { volume: 0.16, rate: 1.05 + (step % 4) * 0.035 });
+        this.tone(250 + (step % 5) * 18, 0.035, "triangle", 0.035);
+        break;
+      case "move":
+        this.sample("footsteps", step, { volume: 0.28, rate: 1.04 + (step % 3) * 0.025 });
+        break;
+      case "commanderReady":
+        // A tiny two-syllable, wordless "mip-mup" made from short formant-like tones.
+        this.tone(360, 0.085, "square", 0.075, 0, 520);
+        this.tone(540, 0.1, "triangle", 0.085, 0.09, 420);
+        this.tone(720, 0.055, "sine", 0.04, 0.035, 610);
+        break;
       case "step":
-        this.tone(185 + (step % 6) * 14, 0.045, "triangle", 0.065);
+        this.sample("footsteps", step, { volume: 0.26 });
         break;
       case "undo":
         this.tone(170, 0.07, "triangle", 0.08, 0, 118);
         break;
       case "recruit":
+        this.sample("soldierPickup", step, { volume: 0.3, rate: 1.08 });
         [330, 440, 554].forEach((note, index) => this.tone(note, 0.11, "square", 0.07, index * 0.055));
         break;
       case "mage":
+        this.sample("magePickup", step, { volume: 0.3, rate: 1.08 });
         [392, 587, 784].forEach((note, index) => this.tone(note, 0.18, "sine", 0.065, index * 0.07));
         break;
       case "builder":
+        this.sample("builderPickup", step, { volume: 0.32, rate: 0.96 });
         [170, 220, 180].forEach((note, index) => this.tone(note, 0.055, "square", 0.065, index * 0.045));
         break;
       case "healer":
+        this.sample("healerPickup", step, { volume: 0.27, rate: 1.18 });
         [330, 440, 523, 659].forEach((note, index) => this.tone(note, 0.15, "sine", 0.07, index * 0.055));
+        break;
+      case "heal":
+        this.sample("healerPickup", step, { volume: 0.26, rate: 1.34 });
+        [294, 392, 494, 659, 784].forEach((note, index) => this.tone(note, 0.2, "sine", 0.05, index * 0.035));
+        break;
+      case "soldierAttack":
+        this.sample("soldierWindup", step, { volume: 0.35, rate: 1.12 });
+        break;
+      case "soldierImpact":
+        this.sample("soldierImpact", step, { volume: 0.38, rate: 1.05 });
+        this.noise(0.06, 0.055);
+        break;
+      case "goblinDeath":
+        this.sample("goblinDeath", step, { volume: 0.38, rate: 1.18 });
+        this.tone(150, 0.13, "sine", 0.08, 0, 92);
+        break;
+      case "orcDeath":
+        this.sample("orcDeath", step, { volume: 0.38, rate: 1.05 });
+        this.tone(118, 0.18, "sawtooth", 0.055, 0, 76);
+        break;
+      case "ogreDeath":
+        this.sample("largeDeath", step, { volume: 0.42, rate: 0.76 });
+        this.sample("orcDeath", step, { volume: 0.3, rate: 0.78 });
+        this.noise(0.18, 0.09);
         break;
       case "goblin":
         this.noise(0.13, 0.11);
         this.tone(125, 0.16, "sine", 0.12, 0, 86);
         break;
       case "dragon":
+        this.sample("mageCast", step, { volume: 0.3, rate: 1.16 });
         this.noise(0.2, 0.08);
         this.tone(220, 0.28, "sawtooth", 0.07, 0, 560);
         this.tone(880, 0.18, "sine", 0.045, 0.12);
         break;
+      case "dragonDeath":
+        this.sample("largeDeath", step, { volume: 0.42, rate: 0.62 });
+        this.tone(190, 0.32, "sawtooth", 0.07, 0, 72);
+        this.noise(0.24, 0.08);
+        break;
       case "river":
+        this.sample("buildStrike", step, { volume: 0.34, rate: 1.02 });
+        this.sample("bridgeCreak", step, { volume: 0.25, rate: 1.1 });
         [210, 190, 230, 205].forEach((note, index) => this.tone(note, 0.045, "square", 0.045, index * 0.04));
         break;
       case "delivery":
@@ -319,12 +432,14 @@ class Soundboard {
         this.tone(620, 0.12, "sine", 0.08, 0.06);
         break;
       case "gate":
+        this.sample("gateOpen", step, { volume: 0.3, rate: 1.18 });
         this.tone(280, 0.18, "square", 0.07, 0, 105);
         break;
       case "blocked":
         this.tone(92, 0.12, "square", 0.075);
         break;
       case "win":
+        this.sample("bridgeSettle", step, { volume: 0.28, rate: 1.25 });
         [262, 330, 392, 523, 659].forEach((note, index) => this.tone(note, 0.26, "triangle", 0.095, index * 0.11));
         break;
       default:
@@ -346,11 +461,14 @@ const session = {
   commanderIndex: 0,
   party: createPartyState(),
   completed: readCompleted(),
+  phase: "planning",
   drawing: false,
   pointerId: null,
   mode: "idle",
   statusTimer: null,
   victoryTimer: null,
+  executionRunId: 0,
+  execution: null,
   blockedFeedback: { key: "", at: 0, audioAt: 0 },
   lastUndoAt: 0,
   playtest: null,
@@ -380,8 +498,82 @@ function cachedSolution() {
   return solutionCache.get(cacheKey);
 }
 
+function commanderById(commanderId) {
+  return session.level.mode === "convoy"
+    ? session.level.commanders.find((commander) => commander.id === commanderId) ?? null
+    : null;
+}
+
+function plannedRouteSpecs(includeActive = true) {
+  if (session.level.mode !== "convoy") {
+    return includeActive && session.path.length
+      ? [{ commanderId: null, path: session.path.map((position) => ({ ...position })) }]
+      : [];
+  }
+  const routes = session.routes.map((route) => ({
+    commanderId: route.commanderId,
+    path: route.path.map((position) => ({ ...position })),
+  }));
+  if (includeActive && session.path.length) {
+    routes.push({
+      commanderId: currentCommander()?.id ?? null,
+      path: session.path.map((position) => ({ ...position })),
+    });
+  }
+  return routes;
+}
+
+function compilePlannedRoutes() {
+  return plannedRouteSpecs().map((route) => {
+    const commander = commanderById(route.commanderId);
+    return {
+      ...route,
+      commander,
+      trace: tracePath(session.level, route.path, { commander }),
+    };
+  });
+}
+
+function planSolved() {
+  if (session.phase !== "planning" || !session.path.length) return false;
+  const compiled = compilePlannedRoutes();
+  if (session.level.mode !== "convoy") return compiled.length === 1 && compiled[0].trace.ok && compiled[0].trace.won;
+  if (compiled.length !== session.level.commanders.length || compiled.some((route) => !route.trace.ok || !route.trace.won)) return false;
+  const beacons = new Set();
+  compiled.forEach((route) => route.trace.state.beacons.forEach((key) => beacons.add(key)));
+  return beaconsComplete(session.level, beacons);
+}
+
+function executionStateActive() {
+  return (session.phase === "executing" || session.phase === "won") && session.execution;
+}
+
 function completedCommanderIds() {
   return new Set(session.routes.map((route) => route.commanderId));
+}
+
+function displayedCommanderState() {
+  if (session.level.mode !== "convoy") return { activeId: null, completed: new Set() };
+  if (session.phase === "won") {
+    return {
+      activeId: null,
+      completed: new Set((session.execution?.routes ?? []).map((route) => route.commanderId)),
+    };
+  }
+  if (session.phase === "executing" && session.execution) {
+    return {
+      activeId: session.execution.commanderId,
+      completed: new Set(
+        session.execution.routes
+          .slice(0, session.execution.routeIndex)
+          .map((route) => route.commanderId),
+      ),
+    };
+  }
+  return {
+    activeId: currentCommander()?.id ?? null,
+    completed: completedCommanderIds(),
+  };
 }
 
 function visibleBeaconSet(includeActive = true) {
@@ -395,6 +587,14 @@ function visibleBeaconSet(includeActive = true) {
 function securedBeaconSet() {
   const beacons = new Set();
   session.routes.forEach((route) => route.state.beacons.forEach((key) => beacons.add(key)));
+  return beacons;
+}
+
+function executedBeaconSet() {
+  const beacons = new Set(session.execution?.beacons ?? []);
+  if (session.phase === "executing" || session.phase === "won") {
+    session.party.beacons.forEach((key) => beacons.add(key));
+  }
   return beacons;
 }
 
@@ -455,7 +655,7 @@ function renderTileContents(cell, tileCode, r, c) {
       const sprite = def.cost === 1 ? ASSETS.goblin : def.cost === 2 ? ASSETS.orc : ASSETS.ogre;
       cell.append(image(sprite, "entity entity--goblin"));
       cell.append(textNode("tile-badge", String(def.cost)));
-      cell.append(textNode("tile-label", def.cost === 1 ? "GOBLIN" : def.cost === 2 ? "GOBLIN DUO" : "GOBLIN TROOP"));
+      cell.append(textNode("tile-label", def.cost === 1 ? "GOBLIN" : def.cost === 2 ? "ORC" : "OGRE"));
       break;
     }
     case "mage":
@@ -548,10 +748,12 @@ function renderTileContents(cell, tileCode, r, c) {
 
 function renderBoard() {
   const level = session.level;
-  const completeCommanders = completedCommanderIds();
+  const commanderDisplay = displayedCommanderState();
   dom.board.replaceChildren();
   dom.board.dataset.mode = level.mode;
   dom.boardFrame.dataset.mode = level.mode;
+  dom.board.dataset.phase = session.phase;
+  dom.boardFrame.dataset.phase = session.phase;
   dom.board.style.setProperty("--cols", level.width);
   dom.board.style.setProperty("--rows", level.height);
   dom.boardFrame.style.setProperty("--cols", level.width);
@@ -569,9 +771,10 @@ function renderBoard() {
       cell.dataset.c = String(c);
       cell.dataset.variation = String((r * 13 + c * 5 + level.id + session.packIndex) % 2);
       cell.dataset.key = `${r},${c}`;
+      if (def.type === "goblin") cell.dataset.enemyTier = String(def.cost);
       if (level.mode === "convoy" && def.commander) {
-        cell.classList.toggle("is-active-commander", def.commander === currentCommander()?.id);
-        cell.classList.toggle("is-locked-commander", completeCommanders.has(def.commander));
+        cell.classList.toggle("is-active-commander", def.commander === commanderDisplay.activeId);
+        cell.classList.toggle("is-locked-commander", commanderDisplay.completed.has(def.commander));
         cell.classList.toggle("has-draft-commander", session.drafts.has(def.commander));
       }
       cell.setAttribute("role", "gridcell");
@@ -591,6 +794,7 @@ function renderPackSelector() {
     button.type = "button";
     button.className = `pack-tab pack-tab--${pack.accent}`;
     button.role = "tab";
+    button.disabled = session.phase === "executing";
     button.setAttribute("aria-selected", String(index === session.packIndex));
     button.setAttribute("aria-label", `${pack.name}, ${cleared} of ${pack.levels.length} cleared`);
     if (index === session.packIndex) button.classList.add("is-current");
@@ -608,6 +812,7 @@ function renderLevelList() {
     const isComplete = session.completed.has(completeKey);
     const button = document.createElement("button");
     button.type = "button";
+    button.disabled = session.phase === "executing";
     button.className = "level-button";
     if (index === session.levelIndex) button.classList.add("is-current");
     if (isComplete) button.classList.add("is-complete");
@@ -698,7 +903,9 @@ function allVisibleRoutes() {
   const visible = session.routes.map((route, index) => ({
     path: route.path,
     className: route.commanderId ?? `route-${index}`,
-    locked: true,
+    locked: session.phase === "planning"
+      || session.phase === "won"
+      || (session.phase === "executing" && index < (session.execution?.routeIndex ?? 0)),
   }));
   session.drafts.forEach((draft, commanderId) => {
     if (!draft.path.length) return;
@@ -713,7 +920,7 @@ function allVisibleRoutes() {
     visible.push({
       path: session.path,
       className: currentCommander()?.id ?? session.pack.accent,
-      locked: false,
+      locked: session.phase === "won",
     });
   }
   return visible;
@@ -721,35 +928,66 @@ function allVisibleRoutes() {
 
 function renderObjectiveTiles() {
   if (!dom.board.children.length) return;
+  const planning = session.phase === "planning";
   if (session.level.mode === "relief") {
     session.level.targets.forEach((target) => {
       const cell = cellFor(target);
       const delivered = session.party.deliveries.get(keyOf(target)) ?? 0;
-      cell?.classList.toggle("is-fed", delivered >= target.need);
-      cell?.querySelectorAll(".hunger-pips i").forEach((pip, index) => pip.classList.toggle("is-filled", index < delivered));
+      cell?.classList.toggle("is-planned-fed", planning && delivered >= target.need);
+      cell?.classList.toggle("is-fed", !planning && delivered >= target.need);
+      cell?.querySelectorAll(".hunger-pips i").forEach((pip, index) => {
+        pip.classList.toggle("is-planned-filled", planning && index < delivered);
+        pip.classList.toggle("is-filled", !planning && index < delivered);
+      });
       const badge = cell?.querySelector(".tile-badge--hunger");
-      if (badge) badge.textContent = delivered >= target.need ? "✓" : `${delivered}/${target.need}`;
+      if (badge) badge.textContent = delivered >= target.need ? (planning ? "◇" : "✓") : `${delivered}/${target.need}`;
     });
   }
   if (session.level.mode === "convoy") {
-    const lit = visibleBeaconSet();
-    session.level.beacons.forEach((beacon) => cellFor(beacon)?.classList.toggle("is-lit", lit.has(keyOf(beacon))));
+    const lit = planning ? visibleBeaconSet() : executedBeaconSet();
+    session.level.beacons.forEach((beacon) => {
+      const cell = cellFor(beacon);
+      cell?.classList.toggle("is-planned-lit", planning && lit.has(keyOf(beacon)));
+      cell?.classList.toggle("is-lit", !planning && lit.has(keyOf(beacon)));
+    });
   }
+
+  const plannedKeys = new Set(allVisibleRoutes().flatMap((route) => route.path.map(keyOf)));
+  dom.board.querySelectorAll(".cell").forEach((cell) => {
+    const tile = TILE_DEFS[tileAt(positionFromCell(cell))];
+    const planned = planning && plannedKeys.has(cell.dataset.key);
+    cell.classList.toggle("is-planned-bridge", planned && tile?.type === "river");
+    cell.classList.toggle("is-planned-open", planned && tile?.type === "gate");
+  });
 }
 
 function renderPath() {
   dom.routeLayer.replaceChildren();
   const routes = allVisibleRoutes();
-  routes.forEach((route) => {
+  routes.forEach((route, routeIndex) => {
     const points = route.path.map(({ r, c }) => `${c + 0.5},${r + 0.5}`).join(" ");
     const shadow = svgNode("polyline", "route-shadow");
-    const line = svgNode("polyline", `route-line route-line--${route.className}${route.locked ? " is-locked" : ""}${route.draft ? " is-draft" : ""}`);
+    const phaseClass = session.phase === "won" ? " is-executed" : " is-planned";
+    const line = svgNode("polyline", `route-line route-line--${route.className}${route.locked ? " is-locked" : ""}${route.draft ? " is-draft" : phaseClass}`);
     shadow.setAttribute("points", points);
     line.setAttribute("points", points);
     dom.routeLayer.append(shadow, line);
+
+    if (session.phase === "executing" && session.execution) {
+      const executedLength = routeIndex < session.execution.routeIndex
+        ? route.path.length
+        : routeIndex === session.execution.routeIndex
+          ? session.execution.stepIndex + 1
+          : 0;
+      if (executedLength > 0) {
+        const executed = svgNode("polyline", `route-line route-line--${route.className} is-executed`);
+        executed.setAttribute("points", route.path.slice(0, executedLength).map(({ r, c }) => `${c + 0.5},${r + 0.5}`).join(" "));
+        dom.routeLayer.append(executed);
+      }
+    }
   });
 
-  const head = session.path.at(-1);
+  const head = session.phase === "planning" ? session.path.at(-1) : null;
   if (head) {
     const headNode = svgNode("circle", `route-head route-head--${currentCommander()?.id ?? session.pack.accent}`);
     headNode.setAttribute("r", "0.19");
@@ -758,40 +996,68 @@ function renderPath() {
     dom.routeLayer.append(headNode);
   }
 
-  const visited = new Set(routes.flatMap((route) => route.path.map(keyOf)));
-  const locked = new Set(session.routes.flatMap((route) => route.path.map(keyOf)));
+  const planned = new Set(routes.flatMap((route) => route.path.map(keyOf)));
+  const locked = new Set(routes.filter((route) => route.locked).flatMap((route) => route.path.map(keyOf)));
   const draft = new Set([...session.drafts.values()].flatMap((route) => route.path.map(keyOf)));
+  const resolved = new Set(session.execution?.resolved ?? []);
   dom.board.querySelectorAll(".cell").forEach((cell) => {
-    cell.classList.toggle("cell--visited", visited.has(cell.dataset.key));
+    const isPlanned = planned.has(cell.dataset.key);
+    const tile = TILE_DEFS[tileAt(positionFromCell(cell))];
+    cell.classList.toggle("cell--planned", isPlanned);
+    cell.classList.toggle("cell--resolved", resolved.has(cell.dataset.key));
+    cell.classList.toggle("cell--planned-event", session.phase === "planning" && isPlanned && !["meadow", "start", "commanderStart"].includes(tile?.type));
     cell.classList.toggle("cell--locked-route", locked.has(cell.dataset.key));
     cell.classList.toggle("cell--draft-route", draft.has(cell.dataset.key));
   });
   renderObjectiveTiles();
 }
 
-function followerTypes() {
+function followerTypes(state = session.party) {
   const types = [];
-  for (let index = 0; index < session.party.healers; index += 1) types.push("healer");
-  for (let index = 0; index < Math.min(session.party.soldiers, 4); index += 1) types.push("soldier");
-  for (let index = 0; index < session.party.mages; index += 1) types.push("mage");
-  for (let index = 0; index < session.party.builders; index += 1) types.push("builder");
+  for (let index = 0; index < state.healers; index += 1) types.push("healer");
+  for (let index = 0; index < Math.min(state.soldiers, 4); index += 1) types.push("soldier");
+  for (let index = 0; index < state.mages; index += 1) types.push("mage");
+  for (let index = 0; index < state.builders; index += 1) types.push("builder");
   return types.slice(0, 4);
 }
 
-function renderParty(animate = false) {
-  const position = session.path.at(-1) ?? activeStart();
-  dom.party.style.left = `${((position.c + 0.5) / session.level.width) * 100}%`;
-  dom.party.style.top = `${((position.r + 0.5) / session.level.height) * 100}%`;
-  dom.party.replaceChildren();
-  const commanderId = currentCommander()?.id;
+function fillPartyToken(container, state, commanderId) {
+  container.replaceChildren();
   const commander = image(ASSETS[commanderId] ?? ASSETS.commander, `party-member${commanderId ? ` party-member--${commanderId}` : ""}`);
-  dom.party.append(commander);
-  followerTypes().forEach((type) => dom.party.append(image(ASSETS[type], "party-follower")));
+  container.append(commander);
+  followerTypes(state).forEach((type) => container.append(image(ASSETS[type], "party-follower")));
+}
+
+function positionToken(container, position) {
+  container.style.left = `${((position.c + 0.5) / session.level.width) * 100}%`;
+  container.style.top = `${((position.r + 0.5) / session.level.height) * 100}%`;
+}
+
+function renderParty(animate = false) {
+  const execution = executionStateActive() ? session.execution : null;
+  const commanderId = execution?.commanderId ?? currentCommander()?.id;
+  const commander = commanderById(commanderId) ?? currentCommander();
+  const position = execution?.position ?? commander?.start ?? session.level.start;
+  const state = execution ? session.party : createPartyState(commander?.initial);
+  positionToken(dom.party, position);
+  fillPartyToken(dom.party, state, commanderId);
   if (animate) {
     dom.party.classList.remove("is-stepping");
     void dom.party.offsetWidth;
     dom.party.classList.add("is-stepping");
   }
+}
+
+function renderPlanningGhost() {
+  if (!dom.planningGhost) return;
+  const visible = session.phase === "planning" && session.path.length > 1;
+  dom.planningGhost.hidden = !visible;
+  if (!visible) {
+    dom.planningGhost.replaceChildren();
+    return;
+  }
+  positionToken(dom.planningGhost, session.path.at(-1));
+  fillPartyToken(dom.planningGhost, session.party, currentCommander()?.id);
 }
 
 function bumpRoster(type) {
@@ -807,6 +1073,18 @@ function bumpRoster(type) {
 }
 
 function renderRoster(event = null) {
+  const ready = planSolved();
+  if (dom.companyHeading) dom.companyHeading.textContent = session.phase === "planning" ? "PLANNED COMPANY" : "YOUR COMPANY";
+  const phaseText = ready
+    ? "READY"
+    : session.phase === "planning"
+      ? "PREVIEW"
+      : session.phase === "executing"
+        ? "EXECUTING"
+        : "SECURED";
+  if (dom.companyPhaseText && dom.companyPhaseText.textContent !== phaseText) {
+    dom.companyPhaseText.textContent = phaseText;
+  }
   dom.soldierCount.textContent = String(session.party.soldiers);
   dom.tiredCount.textContent = `${session.party.tired} tired`;
   dom.mageCount.textContent = String(session.party.mages);
@@ -824,6 +1102,13 @@ function renderRoster(event = null) {
 }
 
 function renderRouteMeters() {
+  if (session.phase === "executing" && session.execution) {
+    dom.movementLabel.textContent = "EXECUTION PROGRESS";
+    dom.movementCount.textContent = `${session.execution.completedSteps} / ${session.execution.totalSteps}`;
+    dom.objectiveLabel.textContent = "CURRENT EVENT";
+    dom.objectiveCount.textContent = session.execution.eventLabel ?? "MARCHING";
+    return;
+  }
   if (session.level.mode === "relief") {
     const delivered = session.level.targets.reduce((sum, target) => sum + Math.min(target.need, session.party.deliveries.get(keyOf(target)) ?? 0), 0);
     const required = session.level.targets.reduce((sum, target) => sum + target.need, 0);
@@ -836,7 +1121,7 @@ function renderRouteMeters() {
   if (session.level.mode === "convoy") {
     const commander = currentCommander();
     const lit = visibleBeaconSet().size;
-    const securedRoutes = session.routes.length + (session.mode === "won" ? 1 : 0);
+    const securedRoutes = session.routes.length + (["ready", "executing", "won"].includes(session.mode) ? 1 : 0);
     dom.movementLabel.textContent = commander ? `${commander.name.toUpperCase()} · MOVE` : "MOVEMENT";
     dom.movementCount.textContent = commander ? `${session.party.moves} / ${movementLimit(session.level, commander, session.party)}` : "—";
     dom.objectiveLabel.textContent = "ROUTES · BEACONS";
@@ -857,27 +1142,46 @@ function renderCommanderOrder() {
     return;
   }
   dom.commanderOrder.replaceChildren();
-  const completeCommanders = completedCommanderIds();
+  const commanderDisplay = displayedCommanderState();
   session.level.commanders.forEach((commander, index) => {
-    const complete = completeCommanders.has(commander.id) || (session.mode === "won" && index === session.commanderIndex);
-    const active = index === session.commanderIndex && !complete;
-    const hasDraft = session.drafts.has(commander.id);
+    const complete = commanderDisplay.completed.has(commander.id);
+    const active = commanderDisplay.activeId === commander.id && !complete;
+    const hasDraft = session.phase === "planning" && session.drafts.has(commander.id);
+    const stateLabel = complete
+      ? (session.phase === "planning" ? "route planned" : "route secured")
+      : session.phase === "executing"
+        ? (active ? "executing route" : "queued route")
+        : hasDraft
+          ? "unfinished route saved"
+          : active
+            ? "currently selected"
+            : "available";
+    const detailLabel = complete
+      ? (session.phase === "planning" ? "route planned" : "route secured")
+      : session.phase === "executing"
+        ? (active ? "executing" : "queued")
+        : hasDraft
+          ? "unfinished · resume"
+          : `${commander.maxMoves} move${commander.maxMoves === 1 ? "" : "s"}`;
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = `commander-chip commander-chip--${commander.id}`;
     if (active) chip.classList.add("is-active");
     if (complete) chip.classList.add("is-complete");
     if (hasDraft) chip.classList.add("has-draft");
-    chip.disabled = complete || session.mode === "won";
+    chip.disabled = complete || session.phase !== "planning";
     chip.setAttribute("aria-pressed", String(active));
-    chip.setAttribute("aria-label", `${commander.name}, ${complete ? "route secured" : active ? "currently selected" : hasDraft ? "unfinished route saved" : "available"}`);
-    chip.innerHTML = `<img src="${ASSETS[commander.id]}" alt=""><span><b>${commander.name.replace(/^(Captain|Warden|Sage) /, "")}</b><small>${complete ? "route secured" : hasDraft ? "unfinished · resume" : `${commander.maxMoves} move${commander.maxMoves === 1 ? "" : "s"}`}</small></span><i>${complete ? "✓" : active ? "◆" : hasDraft ? "•" : ""}</i>`;
+    chip.setAttribute("aria-label", `${commander.name}, ${stateLabel}`);
+    chip.innerHTML = `<img src="${ASSETS[commander.id]}" alt=""><span><b>${commander.name.replace(/^(Captain|Warden|Sage) /, "")}</b><small>${detailLabel}</small></span><i>${complete ? "✓" : active ? "◆" : hasDraft ? "•" : ""}</i>`;
     chip.addEventListener("click", () => selectCommander(index));
     dom.commanderOrder.append(chip);
   });
 }
 
 function defaultStatus() {
+  if (session.phase === "executing") return `<b>SOLUTION IN MOTION</b> ${session.execution?.eventLabel ?? "Your planned route is playing back."}`;
+  if (session.phase === "won") return "<b>ROUTE SECURED!</b> Your company reached the royal banner.";
+  if (planSolved()) return "<b>WINNING PLAN READY!</b> Review the route, rewind if needed, or solve the puzzle.";
   if (!session.path.length) {
     if (session.level.mode === "convoy") return `<b>${currentCommander()?.name.toUpperCase()}</b> · draw here, or choose any available commander`;
     return "<b>PRESS + DRAG</b> from your commander";
@@ -900,7 +1204,10 @@ function eventStatus(event) {
   if (!event) return null;
   switch (event.type) {
     case "recruit": return event.amount === 1 ? "<b>SOLDIER RALLIED!</b> The company grows." : "<b>SQUAD RALLIED!</b> Two soldiers join the line.";
-    case "goblin": return `<b>GOBLINS HANDLED!</b> ${event.cost} soldier${event.cost === 1 ? " rests" : "s rest"} here.`;
+    case "goblin": {
+      const enemy = event.cost === 1 ? "GOBLIN" : event.cost === 2 ? "ORC" : "OGRE";
+      return `<b>${enemy} DEFEATED!</b> ${event.cost} soldier${event.cost === 1 ? " rests" : "s rest"} here.`;
+    }
     case "mage": return "<b>MAGE RALLIED!</b> One dragon can now be enchanted.";
     case "dragon": return "<b>DRAGON CALMED!</b> The mage stays to weave the spell.";
     case "builder": return "<b>BUILDER RALLIED!</b> One river can now be bridged.";
@@ -922,6 +1229,28 @@ function eventStatus(event) {
   }
 }
 
+function planningEventStatus(events = []) {
+  const event = events.at(-1);
+  if (!event) return null;
+  switch (event.type) {
+    case "recruit": return `<b>PLANNED RALLY</b> ${event.amount} ready soldier${event.amount === 1 ? " joins" : "s join"} the preview company.`;
+    case "goblin": return `<b>PLANNED COMBAT</b> ${event.cost} ready soldier${event.cost === 1 ? " becomes" : "s become"} tired here.`;
+    case "mage": return "<b>PLANNED RALLY</b> The preview company gains one mage.";
+    case "dragon": return "<b>PLANNED SPELL</b> One mage is reserved for this dragon.";
+    case "builder": return "<b>PLANNED RALLY</b> The preview company gains one builder.";
+    case "river": return "<b>PLANNED BRIDGE</b> One builder is reserved for this crossing.";
+    case "healer": return event.restored
+      ? `<b>PLANNED SECOND WIND</b> ${event.restored} tired soldier${event.restored === 1 ? " returns" : "s return"} to ready duty.`
+      : "<b>PLANNED HEALER</b> No tired soldiers would be restored here.";
+    case "switch": return `<b>PLANNED SWITCH</b> The ${event.channel} seal will remain open.`;
+    case "gate": return `<b>PLANNED GATE</b> The ${event.channel} seal is available before this step.`;
+    case "delivery": return `<b>PLANNED DELIVERY</b> ${event.targets.length} hunger badge${event.targets.length === 1 ? " fills" : "s fill"} beside this tile.`;
+    case "beacon": return "<b>PLANNED BEACON</b> This signal is included in the route set.";
+    case "supply": return `<b>PLANNED SUPPLIES</b> The movement budget grows by ${event.bonusMoves}.`;
+    default: return null;
+  }
+}
+
 function audioCue(event) {
   if (!event) return "step";
   if (event.type === "recruit") return "recruit";
@@ -937,15 +1266,50 @@ function audioCue(event) {
   return "step";
 }
 
-function refreshSession(event = null, animate = false) {
+function refreshSession(event = null, animate = false, previewEvents = []) {
+  const ready = planSolved();
+  const visualPhase = ready ? "ready" : session.phase;
+  const executing = session.phase === "executing";
+  document.body.dataset.gamePhase = visualPhase;
+  document.body.classList.toggle("is-execution-locked", executing);
+  dom.board.dataset.phase = visualPhase;
+  dom.boardFrame.dataset.phase = visualPhase;
+  dom.boardFrame.classList.toggle("is-input-locked", executing);
+  dom.callout.setAttribute("role", executing ? "presentation" : "status");
+  dom.callout.setAttribute("aria-live", executing ? "off" : "polite");
+  dom.board.setAttribute("aria-busy", String(executing));
+  dom.board.setAttribute("aria-disabled", String(executing));
+  dom.board.tabIndex = executing ? -1 : 0;
+  dom.board.setAttribute("aria-label", executing
+    ? "Puzzle execution in progress. Planning controls are locked."
+    : session.phase === "won"
+      ? "Puzzle solved. The executed route is shown."
+      : ready
+        ? "Winning route planned. Review it or activate Solve Puzzle."
+        : "Puzzle map. Draw from the commander to the banner.");
   renderPath();
   renderParty(animate);
-  renderRoster(event);
-  dom.undo.disabled = session.path.length === 0 || session.mode === "won";
-  if (event) {
+  renderPlanningGhost();
+  renderRoster(session.phase === "executing" ? event : null);
+  dom.undo.disabled = session.path.length === 0 || session.phase !== "planning";
+  dom.reset.disabled = session.phase === "executing";
+  dom.hint.disabled = session.phase === "executing";
+  dom.backToDesigner.disabled = session.phase === "executing";
+  dom.designer.disabled = session.phase === "executing";
+  dom.credits.disabled = session.phase === "executing";
+  if (dom.solve) {
+    dom.solve.hidden = !ready;
+    dom.solve.disabled = !ready;
+    dom.solve.setAttribute("aria-hidden", String(!ready));
+  }
+  if (session.phase === "planning" && previewEvents.length) {
+    const status = planningEventStatus(previewEvents);
+    if (status) setStatus(status, "normal", 1500);
+    else setStatus();
+  } else if (event) {
     const status = eventStatus(event);
     if (status) setStatus(status, "normal", 1500);
-  } else if (session.mode !== "won") {
+  } else if (session.phase !== "won") {
     setStatus();
   }
 }
@@ -1008,13 +1372,13 @@ function markFresh(position) {
 }
 
 function undoStep(withSound = true) {
-  if (!session.path.length || session.mode === "won") return;
+  if (!session.path.length || session.phase !== "planning") return;
   session.path.pop();
   recomputeParty();
   clearBlockedFeedback();
-  if (withSound) audio.play("undo");
+  if (withSound) audio.play("draw", session.path.length);
   session.mode = session.path.length ? "paused" : "idle";
-  refreshSession(null, true);
+  refreshSession();
 }
 
 function pathIndexAt(position) {
@@ -1023,17 +1387,17 @@ function pathIndexAt(position) {
 
 function rewindPathTo(position, withSound = true) {
   const index = pathIndexAt(position);
-  if (index < 0 || index === session.path.length - 1 || session.mode === "won") return false;
+  if (index < 0 || index === session.path.length - 1 || session.phase !== "planning") return false;
   session.path = session.path.slice(0, index + 1);
   recomputeParty();
   clearBlockedFeedback();
   session.mode = session.drawing ? "drawing" : "paused";
   const now = globalThis.performance?.now?.() ?? Date.now();
   if (withSound && now - session.lastUndoAt >= 110) {
-    audio.play("undo");
+    audio.play("draw", session.path.length);
     session.lastUndoAt = now;
   }
-  refreshSession(null, true);
+  refreshSession();
   return true;
 }
 
@@ -1064,7 +1428,7 @@ function saveActiveDraft() {
 }
 
 function selectCommander(index, options = {}) {
-  if (session.level.mode !== "convoy" || session.mode === "won") return false;
+  if (session.level.mode !== "convoy" || session.phase !== "planning") return false;
   const commander = session.level.commanders[index];
   if (!commander || completedCommanderIds().has(commander.id)) return false;
   if (index === session.commanderIndex) return true;
@@ -1083,10 +1447,9 @@ function selectCommander(index, options = {}) {
   session.mode = session.path.length ? "paused" : "idle";
   clearBlockedFeedback();
   renderBoard();
-  refreshSession(null, true);
+  refreshSession();
   if (!options.silent) {
-    audio.play("switch");
-    setStatus(`<b>${commander.name.toUpperCase()} SELECTED</b> ${draft ? "Continue the saved trail from its glowing head." : "Draw from the glowing start."}`, "success", 1600);
+    setStatus(`<b>${commander.name.toUpperCase()} SELECTED</b> ${draft ? "Continue the saved plan from its glowing head." : "Plan from the glowing start."}`, "success", 1600);
   }
   return true;
 }
@@ -1109,11 +1472,11 @@ function secureCommanderRoute() {
   session.path = [];
   session.party = createPartyState();
   selectCommander(nextIndex, { saveCurrent: false, silent: true });
-  audio.play("switch");
-  setStatus(`<b>${commander.name.toUpperCase()} SECURED!</b> Choose any remaining commander; unfinished trails stay saved.`, "success", 2400);
+  setStatus(`<b>${commander.name.toUpperCase()} ROUTE PLANNED!</b> Choose any remaining commander; unfinished plans stay saved.`, "success", 2400);
 }
 
 function attemptAdjacent(position) {
+  if (session.phase !== "planning") return false;
   const head = session.path.at(-1);
   if (!head || samePosition(head, position)) return "noop";
 
@@ -1137,7 +1500,8 @@ function attemptAdjacent(position) {
     return false;
   }
 
-  const transition = advanceState(session.level, session.party, position, { commander: currentCommander() });
+  const candidatePath = [...session.path, position];
+  const transition = tracePath(session.level, candidatePath, { commander: currentCommander() });
   if (!transition.ok) {
     flashBlocked(position, transition.reason);
     return false;
@@ -1159,13 +1523,17 @@ function attemptAdjacent(position) {
   session.mode = "drawing";
   clearBlockedFeedback();
   markFresh(position);
-  const cue = audioCue(transition.event);
-  audio.play(cue, session.path.length);
-  refreshSession(transition.event, true);
+  const events = transition.steps.at(-1)?.events ?? [];
+  audio.play("draw", session.path.length);
+  refreshSession(null, false, events);
 
   if (isActiveGoal) {
     if (session.level.mode === "convoy" && !isFinalCommander) secureCommanderRoute();
-    else finishLevel();
+    else {
+      session.mode = "ready";
+      session.drawing = false;
+      refreshSession(null, false, events);
+    }
   }
   return "advanced";
 }
@@ -1186,14 +1554,14 @@ function attemptToward(target) {
 
   if (head.r === target.r) {
     const direction = Math.sign(target.c - head.c);
-    while (session.mode !== "won" && head.c !== target.c) {
+    while (session.phase === "planning" && session.mode !== "ready" && head.c !== target.c) {
       const next = { r: head.r, c: head.c + direction };
       if (attemptAdjacent(next) !== "advanced") break;
       head = session.path.at(-1);
     }
   } else if (head.c === target.c) {
     const direction = Math.sign(target.r - head.r);
-    while (session.mode !== "won" && head.r !== target.r) {
+    while (session.phase === "planning" && session.mode !== "ready" && head.r !== target.r) {
       const next = { r: head.r + direction, c: head.c };
       if (attemptAdjacent(next) !== "advanced") break;
       head = session.path.at(-1);
@@ -1202,22 +1570,19 @@ function attemptToward(target) {
 }
 
 function beginPath() {
-  if (session.path.length) return;
+  if (session.path.length || session.phase !== "planning") return;
   session.path = [{ ...activeStart() }];
-  const startTransition = advanceState(session.level, createPartyState(currentCommander()?.initial), activeStart(), {
-    commander: currentCommander(),
-    countMove: false,
-  });
-  session.party = startTransition.state;
+  const startTrace = tracePath(session.level, session.path, { commander: currentCommander() });
+  session.party = startTrace.state;
   session.mode = "drawing";
   clearBlockedFeedback();
-  audio.play("step", 0);
-  refreshSession(null, true);
+  audio.play("draw", 0);
+  refreshSession();
 }
 
 function handlePointerDown(event) {
   if (event.button !== undefined && event.button !== 0) return;
-  if (session.mode === "won") return;
+  if (session.phase !== "planning") return;
   audio.ensure();
   const cell = event.target.closest(".cell");
   const position = positionFromCell(cell);
@@ -1255,7 +1620,7 @@ function handlePointerDown(event) {
     }
   }
 
-  session.drawing = session.mode !== "won" && session.path.length > 0;
+  session.drawing = session.phase === "planning" && session.mode !== "ready" && session.path.length > 0;
   session.pointerId = event.pointerId;
   if (session.drawing) {
     try { dom.boardFrame.setPointerCapture?.(event.pointerId); } catch { /* Synthetic and older pointer sources may not support capture. */ }
@@ -1264,7 +1629,7 @@ function handlePointerDown(event) {
 }
 
 function handlePointerMove(event) {
-  if (!session.drawing || event.pointerId !== session.pointerId || session.mode === "won") return;
+  if (!session.drawing || event.pointerId !== session.pointerId || session.phase !== "planning") return;
   const element = document.elementFromPoint(event.clientX, event.clientY);
   const cell = element?.closest?.(".cell");
   const position = positionFromCell(cell);
@@ -1281,7 +1646,7 @@ function endPointer(event) {
 }
 
 function handleKeyboard(event) {
-  if (session.mode === "won") return;
+  if (session.phase !== "planning") return;
   const deltas = {
     ArrowUp: [-1, 0],
     ArrowRight: [0, 1],
@@ -1313,11 +1678,270 @@ function handleKeyboard(event) {
 
   const delta = deltas[event.key];
   if (!delta) return;
+  if (session.mode === "ready") return;
   audio.ensure();
   if (!session.path.length) beginPath();
   const head = session.path.at(-1);
   attemptAdjacent({ r: head.r + delta[0], c: head.c + delta[1] });
   event.preventDefault();
+}
+
+function executionEventLabel(event) {
+  if (!event) return "MARCHING";
+  if (event.type === "recruit") return "SOLDIER PICKUP";
+  if (event.type === "goblin") return event.cost === 1 ? "GOBLIN COMBAT" : event.cost === 2 ? "ORC COMBAT" : "OGRE COMBAT";
+  if (event.type === "mage") return "MAGE PICKUP";
+  if (event.type === "dragon") return "FIREBALL";
+  if (event.type === "builder") return "BUILDER PICKUP";
+  if (event.type === "river") return "BRIDGE BUILD";
+  if (event.type === "healer") return event.restored ? "HEALING" : "HEALER PICKUP";
+  if (event.type === "goal" || event.type === "commanderGoal") return "STANDARD SECURED";
+  return event.type.toUpperCase();
+}
+
+function executionDelay(milliseconds, runId) {
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const duration = reduced ? Math.min(24, milliseconds) : milliseconds;
+  return new Promise((resolve) => {
+    window.setTimeout(() => resolve(runId === session.executionRunId), duration);
+  });
+}
+
+function pulseClass(node, className) {
+  if (!node) return;
+  node.classList.remove(className);
+  void node.offsetWidth;
+  node.classList.add(className);
+}
+
+function spawnExecutionFx(kind, position, destination = position) {
+  if (!dom.executionFx) return null;
+  dom.executionFx.hidden = false;
+  const effectBounds = dom.executionFx.getBoundingClientRect();
+  const cellWidth = effectBounds.width / session.level.width;
+  const cellHeight = effectBounds.height / session.level.height;
+  const effect = document.createElement("span");
+  effect.className = `execution-fx execution-fx--${kind}`;
+  effect.style.setProperty("--fx-x", `${((position.c + 0.5) / session.level.width) * 100}%`);
+  effect.style.setProperty("--fx-y", `${((position.r + 0.5) / session.level.height) * 100}%`);
+  effect.style.setProperty("--fx-dx", `${(destination.c - position.c) * cellWidth}px`);
+  effect.style.setProperty("--fx-dy", `${(destination.r - position.r) * cellHeight}px`);
+  dom.executionFx.append(effect);
+  return effect;
+}
+
+function clearExecutionEvent(cell, cellClass, effect) {
+  if (cellClass) cell?.classList.remove(cellClass);
+  effect?.remove();
+  if (dom.executionFx && !dom.executionFx.children.length) dom.executionFx.hidden = true;
+}
+
+async function presentExecutionEvent(event, position, runId, eventPause, fromPosition = position) {
+  if (!event || runId !== session.executionRunId) return false;
+  const cell = cellFor(position);
+  session.execution.eventLabel = executionEventLabel(event);
+  renderRouteMeters();
+
+  let cellClass = "";
+  let effect = null;
+  let pause = eventPause;
+
+  switch (event.type) {
+    case "recruit":
+      cellClass = "is-event-recruit";
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx("recruit", position);
+      audio.play("recruit", session.execution.completedSteps);
+      pause = Math.max(pause, 300);
+      break;
+    case "mage":
+      cellClass = "is-event-mage";
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx("mage", position);
+      audio.play("mage", session.execution.completedSteps);
+      pause = Math.max(pause, 320);
+      break;
+    case "builder":
+      cellClass = "is-event-builder";
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx("builder", position);
+      audio.play("builder", session.execution.completedSteps);
+      pause = Math.max(pause, 320);
+      break;
+    case "healer":
+      cellClass = event.restored ? "is-event-healing" : "is-event-healer";
+      cell?.classList.add("is-event-healer", cellClass);
+      effect = spawnExecutionFx(event.restored ? "healing" : "healer", position);
+      pulseClass(dom.party, event.restored ? "is-healing" : "is-stepping");
+      audio.play(event.restored ? "heal" : "healer", session.execution.completedSteps);
+      pause = Math.max(pause, event.restored ? 540 : 360);
+      break;
+    case "goblin": {
+      const tier = event.cost === 1 ? "goblin" : event.cost === 2 ? "orc" : "ogre";
+      pulseClass(dom.party, "is-attacking");
+      audio.play("soldierAttack", session.execution.completedSteps);
+      if (!await executionDelay(70, runId)) return false;
+      audio.play("soldierImpact", session.execution.completedSteps);
+      cellClass = `is-event-${tier}-death`;
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx(`impact-${tier}`, position);
+      audio.play(`${tier}Death`, session.execution.completedSteps);
+      pause = Math.max(pause, event.cost === 1 ? 320 : event.cost === 2 ? 340 : 400);
+      break;
+    }
+    case "dragon": {
+      pulseClass(dom.party, "is-casting");
+      const fireball = spawnExecutionFx("fireball", fromPosition, position);
+      audio.play("dragon", session.execution.completedSteps);
+      if (!await executionDelay(280, runId)) return false;
+      fireball?.remove();
+      cellClass = "is-event-dragon-death";
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx("dragon-death", position);
+      audio.play("dragonDeath", session.execution.completedSteps);
+      pause = Math.max(pause, 460);
+      break;
+    }
+    case "river":
+      cellClass = "is-event-bridge-build";
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx("bridge", position);
+      audio.play("river", session.execution.completedSteps);
+      pause = Math.max(pause, 340);
+      break;
+    case "goal":
+    case "commanderGoal":
+      cellClass = "is-event-complete";
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx("completion", position);
+      pause = Math.max(pause, 440);
+      break;
+    default: {
+      const cue = audioCue(event);
+      if (cue !== "step") audio.play(cue, session.execution.completedSteps);
+      pause = Math.max(70, eventPause - 30);
+      break;
+    }
+  }
+
+  const current = await executionDelay(pause, runId);
+  clearExecutionEvent(cell, cellClass, effect);
+  if (event.type === "healer") cell?.classList.remove("is-event-healer", "is-event-healing");
+  dom.party.classList.remove("is-attacking", "is-casting", "is-healing");
+  return current;
+}
+
+function cancelExecution() {
+  session.executionRunId += 1;
+  session.execution = null;
+  dom.executionFx?.replaceChildren();
+  if (dom.executionFx) dom.executionFx.hidden = true;
+  document.body.classList.remove("is-execution-locked");
+  dom.party.classList.remove("is-starting", "is-attacking", "is-casting", "is-healing");
+}
+
+async function executePlan() {
+  if (!planSolved()) return;
+  const routes = compilePlannedRoutes();
+  if (!routes.length || routes.some((route) => !route.trace.ok || !route.trace.won)) {
+    flashBlocked(session.path.at(-1) ?? activeStart(), "The plan changed before execution. Review the route and try again.");
+    return;
+  }
+
+  const runId = session.executionRunId + 1;
+  session.executionRunId = runId;
+  const totalSteps = routes.reduce((sum, route) => sum + Math.max(0, route.trace.steps.length - 1), 0);
+  const stepPause = totalSteps > 44 ? 72 : totalSteps > 24 ? 88 : 108;
+  const eventPause = totalSteps > 44 ? 220 : totalSteps > 24 ? 255 : 300;
+  const firstRoute = routes[0];
+
+  session.phase = "executing";
+  session.mode = "executing";
+  session.drawing = false;
+  session.pointerId = null;
+  session.party = createPartyState(firstRoute.trace.initialState);
+  session.execution = {
+    runId,
+    routes,
+    routeIndex: 0,
+    stepIndex: 0,
+    commanderId: firstRoute.commanderId,
+    position: { ...firstRoute.trace.steps[0].position },
+    resolved: new Set(),
+    beacons: new Set(),
+    completedSteps: 0,
+    totalSteps,
+    eventLabel: "READY!",
+  };
+
+  clearBlockedFeedback(true);
+  renderBoard();
+  renderLevelList();
+  refreshSession();
+  pulseClass(dom.party, "is-starting");
+  audio.play("commanderReady");
+  setStatus("<b>FORWARD!</b> The commander is bringing your plan to life.", "success");
+  if (!await executionDelay(330, runId)) return;
+  dom.party.classList.remove("is-starting");
+
+  for (let routeIndex = 0; routeIndex < routes.length; routeIndex += 1) {
+    const route = routes[routeIndex];
+    const startStep = route.trace.steps[0];
+    session.execution.routeIndex = routeIndex;
+    session.execution.stepIndex = 0;
+    session.execution.commanderId = route.commanderId;
+    session.execution.position = { ...startStep.position };
+    session.execution.eventLabel = "READY!";
+    session.party = createPartyState(startStep.before);
+    renderBoard();
+    refreshSession();
+
+    if (routeIndex > 0) {
+      pulseClass(dom.party, "is-starting");
+      audio.play("commanderReady", routeIndex);
+      setStatus(`<b>${route.commander.name.toUpperCase()} STEPS FORWARD!</b> The next planned route begins.`, "success");
+      if (!await executionDelay(250, runId)) return;
+      dom.party.classList.remove("is-starting");
+    }
+
+    for (const event of startStep.events) {
+      if (!await presentExecutionEvent(event, startStep.position, runId, eventPause, startStep.position)) return;
+    }
+    session.party = createPartyState(startStep.after);
+    session.execution.resolved.add(keyOf(startStep.position));
+    refreshSession(startStep.events.at(-1) ?? null);
+
+    for (let stepIndex = 1; stepIndex < route.trace.steps.length; stepIndex += 1) {
+      if (runId !== session.executionRunId) return;
+      const step = route.trace.steps[stepIndex];
+      session.execution.stepIndex = stepIndex;
+      session.execution.position = { ...step.position };
+      session.execution.eventLabel = "MARCHING";
+      session.party = createPartyState(step.before);
+      audio.play("move", session.execution.completedSteps);
+      renderParty(true);
+      renderRouteMeters();
+      setStatus(`<b>EXECUTING PLAN</b> Step ${session.execution.completedSteps + 1} of ${totalSteps}.`);
+      if (!await executionDelay(stepPause, runId)) return;
+
+      const previousPosition = route.trace.steps[stepIndex - 1].position;
+      for (const event of step.events) {
+        if (!await presentExecutionEvent(event, step.position, runId, eventPause, previousPosition)) return;
+      }
+
+      session.party = createPartyState(step.after);
+      session.execution.resolved.add(keyOf(step.position));
+      session.execution.completedSteps += 1;
+      const lastEvent = step.events.at(-1) ?? null;
+      refreshSession(lastEvent);
+      if (!await executionDelay(step.events.length ? 35 : 18, runId)) return;
+    }
+
+    route.trace.state.beacons.forEach((beacon) => session.execution.beacons.add(beacon));
+  }
+
+  if (runId !== session.executionRunId) return;
+  finishLevel();
 }
 
 function createConfetti() {
@@ -1338,17 +1962,17 @@ function createConfetti() {
 }
 
 function finishLevel() {
+  session.phase = "won";
   session.mode = "won";
   session.drawing = false;
+  if (session.level.mode === "convoy") renderBoard();
   const isPlaytest = Boolean(session.playtest);
   if (!isPlaytest) {
     session.completed.add(currentLevelKey());
     persistCompleted();
     renderLevelList();
   }
-  renderRouteMeters();
-  renderCommanderOrder();
-  dom.undo.disabled = true;
+  refreshSession();
   dom.party.classList.add("is-winning");
   createConfetti();
   audio.play("win");
@@ -1378,7 +2002,7 @@ function finishLevel() {
       : "NEXT MARCH <span>→</span>";
 
   session.victoryTimer = window.setTimeout(() => {
-    if (!dom.victoryDialog.open && session.mode === "won") dom.victoryDialog.showModal();
+    if (!dom.victoryDialog.open && session.phase === "won") dom.victoryDialog.showModal();
   }, 850);
 }
 
@@ -1390,12 +2014,14 @@ function clearTimers() {
 }
 
 function resetLevel() {
+  cancelExecution();
   clearTimers();
   session.path = [];
   session.routes = [];
   session.drafts.clear();
   session.commanderIndex = 0;
   session.party = createPartyState(currentCommander()?.initial);
+  session.phase = "planning";
   session.mode = "idle";
   session.drawing = false;
   session.pointerId = null;
@@ -1408,6 +2034,7 @@ function resetLevel() {
 }
 
 function loadLevel(index) {
+  cancelExecution();
   clearTimers();
   const levels = session.pack.levels;
   session.levelIndex = (index + levels.length) % levels.length;
@@ -1417,6 +2044,7 @@ function loadLevel(index) {
   session.drafts.clear();
   session.commanderIndex = 0;
   session.party = createPartyState(currentCommander()?.initial);
+  session.phase = "planning";
   session.mode = "idle";
   session.drawing = false;
   session.pointerId = null;
@@ -1456,12 +2084,14 @@ function startDesignerPlaytest(level, context) {
   };
   session.levelIndex = 0;
   session.level = level;
+  cancelExecution();
   clearTimers();
   session.path = [];
   session.routes = [];
   session.drafts.clear();
   session.commanderIndex = 0;
   session.party = createPartyState(currentCommander()?.initial);
+  session.phase = "planning";
   session.mode = "idle";
   session.drawing = false;
   session.pointerId = null;
@@ -1520,6 +2150,7 @@ function commonPrefixLength(a, b) {
 }
 
 function showNudge() {
+  if (session.phase !== "planning") return;
   audio.ensure();
   const scoutReport = cachedSolution();
   const solution = session.level.mode === "convoy"
@@ -1551,7 +2182,6 @@ function showNudge() {
     cell.classList.add("cell--hint");
     window.setTimeout(() => cell.classList.remove("cell--hint"), 2100);
   }
-  audio.play("switch");
 }
 
 function updateSoundButton() {
@@ -1571,11 +2201,11 @@ dom.boardFrame.addEventListener("lostpointercapture", endPointer);
 dom.undo.addEventListener("click", () => undoStep());
 dom.reset.addEventListener("click", resetLevel);
 dom.hint.addEventListener("click", showNudge);
+dom.solve?.addEventListener("click", executePlan);
 dom.sound.addEventListener("click", () => {
   audio.ensure();
   audio.toggle();
   updateSoundButton();
-  if (!audio.muted) audio.play("switch");
 });
 dom.credits.addEventListener("click", () => dom.creditsDialog.showModal());
 dom.closeCredits.addEventListener("click", () => dom.creditsDialog.close());

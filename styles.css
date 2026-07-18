@@ -870,10 +870,30 @@ a:focus-visible {
 .standard-gem { top: 5%; left: 6%; width: 17px; height: 17px; border-radius: 4px; color: var(--cream); background: var(--coral); font-size: 8px; }
 .standard-gem--warden { background: var(--water); }
 .standard-gem--sage { background: var(--violet); }
+
+.cell--planned:not(.cell--wilds)::after {
+  background: repeating-linear-gradient(135deg, rgba(255, 242, 214, 0.075) 0 3px, transparent 3px 8px);
+  box-shadow: inset 0 0 0 2px rgba(255, 220, 127, 0.2);
 }
 
-.cell--visited:not(.cell--wilds)::after {
-  box-shadow: inset 0 0 0 2px rgba(255, 220, 127, 0.2);
+.cell--planned .tile-label {
+  border: 1px dashed rgba(255, 235, 178, 0.3);
+}
+
+.cell--planned-event .tile-label {
+  color: #f1ecff;
+  border-color: rgba(216, 207, 255, 0.52);
+  background: rgba(72, 61, 104, 0.78);
+  box-shadow: 0 0 6px rgba(169, 151, 255, 0.34);
+}
+
+.cell--planned-event .tile-badge {
+  border-style: dashed;
+  filter: saturate(0.72) brightness(1.08);
+}
+
+.cell--resolved:not(.cell--wilds)::after {
+  box-shadow: inset 0 0 0 2px rgba(115, 224, 164, 0.25);
 }
 
 .cell--hint::after {
@@ -946,7 +966,7 @@ a:focus-visible {
   animation: healerAura 1.4s steps(5, end) infinite;
 }
 
-.cell--healer.cell--visited .healer-aura {
+.cell--healer.cell--resolved .healer-aura {
   opacity: 0.14;
   animation: none;
 }
@@ -956,15 +976,67 @@ a:focus-visible {
   animation: bannerWave 1s steps(2, end) infinite;
 }
 
-.cell--visited .entity:not(.entity--goal) {
+.cell--resolved .entity:not(.entity--goal) {
   opacity: 0;
   transform: translateX(-50%) translateY(-10px) scale(0.55);
   filter: brightness(1.8) drop-shadow(0 0 8px var(--gold));
 }
 
-.cell--river.cell--visited .entity {
+.cell--river.cell--resolved .entity {
   opacity: 1;
   transform: translateX(-50%);
+}
+
+/* Planning previews communicate outcomes without resolving the real board. */
+.cell--preview-fed .entity--hungry,
+.cell.is-planned-fed .entity--hungry {
+  opacity: 0.72;
+  filter: grayscale(0.2) sepia(0.25) drop-shadow(0 0 7px rgba(115, 224, 164, 0.55));
+}
+
+.cell--preview-fed .tile-badge--hunger,
+.cell.is-planned-fed .tile-badge--hunger {
+  color: #d8ffe7;
+  border-color: rgba(115, 224, 164, 0.72);
+  border-style: dashed;
+  background: rgba(34, 88, 65, 0.88);
+  box-shadow: 0 2px 0 #244d3d;
+}
+
+.cell--preview-fed .hunger-pips i,
+.cell.is-planned-fed .hunger-pips i.is-planned-filled {
+  border-color: rgba(115, 224, 164, 0.75);
+  background: rgba(115, 224, 164, 0.38);
+}
+
+.cell .hunger-pips i.is-planned-filled {
+  border-color: rgba(115, 224, 164, 0.75);
+  background: rgba(115, 224, 164, 0.38);
+  box-shadow: 0 0 4px rgba(115, 224, 164, 0.42);
+}
+
+.cell--beacon.cell--preview-lit .beacon-symbol,
+.cell--beacon.is-planned-lit .beacon-symbol {
+  color: #fff0bd;
+  border-color: rgba(255, 227, 155, 0.65);
+  border-style: dashed;
+  background: rgba(140, 94, 49, 0.88);
+  box-shadow: 0 0 10px rgba(255, 201, 92, 0.36), inset 0 -7px rgba(85, 50, 39, 0.24);
+}
+
+.cell--preview-open .gate-symbol,
+.cell.is-planned-open .gate-symbol {
+  opacity: 0.68;
+  border-style: dashed;
+  filter: brightness(1.15);
+}
+
+.cell--preview-bridge .bridge-planks,
+.cell.is-planned-bridge .bridge-planks {
+  opacity: 0.32;
+  transform: scaleY(1);
+  transition: none;
+  filter: grayscale(0.25) brightness(1.25);
 }
 
 .tile-badge {
@@ -1064,7 +1136,7 @@ a:focus-visible {
   background: repeating-linear-gradient(90deg, #8f84d0 0 6px, #4d4779 6px 9px);
 }
 
-.cell--visited .gate-symbol {
+.cell--resolved .gate-symbol {
   transform-origin: bottom;
   animation: gateOpen 320ms steps(4, end) forwards;
 }
@@ -1094,7 +1166,7 @@ a:focus-visible {
   box-shadow: inset 0 -2px #995d3c;
 }
 
-.cell--visited .bridge-planks {
+.cell--resolved .bridge-planks {
   transform: scaleY(1);
 }
 
@@ -1128,6 +1200,15 @@ a:focus-visible {
 }
 
 .route-line.is-locked { opacity: 0.88; }
+.route-line.is-planned {
+  opacity: 0.82;
+  stroke-dasharray: 3 2;
+}
+.route-line.is-executed {
+  opacity: 1;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 7px rgba(255, 242, 214, 0.72));
+}
 .route-line.is-draft {
   opacity: 0.48;
   stroke-dasharray: 7 7;
@@ -1184,6 +1265,26 @@ a:focus-visible {
   animation: partyWin 700ms steps(4, end) 2;
 }
 
+.party-token.is-starting {
+  animation: partyStart 420ms steps(4, end);
+}
+
+.party-token.is-attacking {
+  animation: partyAttack 280ms steps(4, end);
+}
+
+.party-token.is-casting {
+  animation: partyCast 420ms steps(5, end);
+}
+
+.party-token.is-healing {
+  animation: partyHeal 520ms steps(6, end);
+}
+
+.party-token.is-stationary {
+  transition: none;
+}
+
 .party-member {
   position: absolute;
   left: 50%;
@@ -1208,6 +1309,168 @@ a:focus-visible {
 .party-follower:nth-child(3) { right: -2%; bottom: 7%; animation-delay: -260ms; }
 .party-follower:nth-child(4) { left: 7%; top: -1%; animation-delay: -380ms; }
 .party-follower:nth-child(5) { right: 7%; top: -2%; animation-delay: -500ms; }
+
+.planning-ghost {
+  position: absolute;
+  z-index: 7;
+  left: 0;
+  top: 0;
+  width: calc(100% / var(--cols));
+  height: calc(100% / var(--rows));
+  border-radius: 50%;
+  opacity: 0.7;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: left 115ms ease-out, top 115ms ease-out, opacity 160ms ease;
+  filter: saturate(0.25) hue-rotate(160deg) drop-shadow(0 0 7px rgba(216, 207, 255, 0.82));
+}
+
+.planning-ghost::before {
+  position: absolute;
+  inset: 8%;
+  content: "";
+  border: 2px dashed rgba(231, 226, 255, 0.72);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(169, 151, 255, 0.2), transparent 68%);
+  animation: ghostRing 1.15s steps(4, end) infinite;
+}
+
+.planning-ghost .party-member,
+.planning-ghost .party-follower {
+  opacity: 0.68;
+  filter: grayscale(0.72) brightness(1.45) drop-shadow(0 0 5px rgba(216, 207, 255, 0.86));
+}
+
+.planning-ghost.is-stepping {
+  animation: ghostStep 170ms ease-out;
+}
+
+.planning-ghost[hidden],
+.solve-puzzle-button[hidden],
+.execution-fx-layer[hidden] {
+  display: none !important;
+}
+
+.execution-fx-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.execution-fx {
+  --fx-x: 50%;
+  --fx-y: 50%;
+  position: absolute;
+  left: var(--fx-x);
+  top: var(--fx-y);
+  width: calc(100% / var(--cols));
+  height: calc(100% / var(--rows));
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+}
+
+.execution-fx::before,
+.execution-fx::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.execution-fx--recruit::before,
+.execution-fx--mage::before,
+.execution-fx--builder::before,
+.execution-fx--healer::before {
+  inset: 14%;
+  border: 4px solid var(--fx-color, var(--mint));
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--fx-color, var(--mint));
+  animation: pickupBurst 300ms steps(5, end) forwards;
+}
+
+.execution-fx--recruit { --fx-color: var(--mint); }
+.execution-fx--mage { --fx-color: var(--violet); }
+.execution-fx--builder { --fx-color: var(--gold); }
+.execution-fx--healer { --fx-color: var(--coral); }
+
+.execution-fx--recruit::after,
+.execution-fx--mage::after,
+.execution-fx--builder::after,
+.execution-fx--healer::after {
+  inset: 22%;
+  background:
+    linear-gradient(90deg, transparent 44%, var(--fx-color) 44% 56%, transparent 56%),
+    linear-gradient(transparent 44%, var(--fx-color) 44% 56%, transparent 56%);
+  filter: drop-shadow(0 0 4px var(--fx-color));
+  animation: pickupSpark 300ms steps(4, end) forwards;
+}
+
+.execution-fx--impact-goblin::before,
+.execution-fx--impact-orc::before,
+.execution-fx--impact-ogre::before,
+.execution-fx--dragon-death::before {
+  inset: 16%;
+  border: 4px solid var(--fx-color, #c4f084);
+  border-radius: 45% 55% 48% 52%;
+  box-shadow: 0 0 14px var(--fx-color, #c4f084);
+  animation: enemyImpact 320ms steps(6, end) forwards;
+}
+
+.execution-fx--impact-orc { --fx-color: #f0a45d; }
+.execution-fx--impact-ogre { --fx-color: var(--coral); }
+.execution-fx--dragon-death { --fx-color: #d7a2ff; }
+
+.execution-fx--fireball {
+  --fx-dx: 0px;
+  --fx-dy: 0px;
+  width: clamp(10px, 34%, 24px);
+  height: clamp(10px, 34%, 24px);
+  border-radius: 50%;
+  background: #fff2ae;
+  box-shadow: 0 0 5px #fff2ae, 0 0 12px #ff8a4d, -8px 0 0 -3px #ff604f;
+  animation: fireballFlight 280ms linear forwards;
+}
+
+.execution-fx--bridge::before {
+  inset: 13% 18%;
+  border: 3px dashed #f4bd65;
+  border-radius: 4px;
+  background: repeating-linear-gradient(0deg, #d49150 0 5px, #6e4735 5px 7px);
+  box-shadow: 0 0 9px rgba(255, 201, 92, 0.72);
+  animation: bridgeBuildFx 340ms steps(5, end) forwards;
+}
+
+.execution-fx--healing::before,
+.execution-fx--healing::after {
+  inset: 4%;
+  border: 3px solid rgba(255, 164, 173, 0.82);
+  border-radius: 50%;
+  animation: healingWave 420ms ease-out forwards;
+}
+
+.execution-fx--healing::after {
+  animation-delay: 120ms;
+}
+
+.execution-fx--completion::before {
+  inset: -30%;
+  background: conic-gradient(from 0deg, transparent 0 8%, var(--gold) 8% 10%, transparent 10% 23%, var(--mint) 23% 25%, transparent 25% 40%, var(--cream) 40% 42%, transparent 42% 100%);
+  animation: completionFlash 440ms steps(8, end) forwards;
+}
+
+.cell.is-event-recruit .entity--recruit { animation: pickupSoldier 280ms steps(5, end) forwards; }
+.cell.is-event-mage .entity--mage { animation: pickupMage 320ms steps(6, end) forwards; }
+.cell.is-event-builder .entity--builder { animation: pickupBuilder 320ms steps(5, end) forwards; }
+.cell.is-event-healer .entity--healer { animation: pickupHealer 360ms steps(6, end) forwards; }
+.cell.is-event-goblin-death .entity--goblin { animation: goblinDeath 280ms steps(5, end) forwards; }
+.cell.is-event-orc-death .entity--goblin { animation: orcDeath 340ms steps(6, end) forwards; }
+.cell.is-event-ogre-death .entity--goblin { animation: ogreDeath 400ms steps(7, end) forwards; }
+.cell.is-event-dragon-death .entity--dragon { animation: dragonDeath 460ms steps(8, end) forwards; }
+.cell.is-event-bridge-build .bridge-planks { animation: bridgePlanksBuild 340ms steps(5, end) forwards; }
+.cell.is-event-healing { animation: healingCell 420ms steps(6, end); }
+.cell.is-event-complete { animation: completionCell 440ms steps(8, end); }
 
 .confetti-layer {
   position: absolute;
@@ -1271,6 +1534,195 @@ a:focus-visible {
   background: var(--gold);
   font-size: 14px;
   font-weight: 900;
+}
+
+.solve-puzzle-button {
+  position: relative;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 26px;
+  align-items: center;
+  gap: 11px;
+  width: min(360px, calc(100% - 18px));
+  min-height: 58px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  overflow: hidden;
+  border: 2px solid #ffe197;
+  border-radius: 11px;
+  color: #2d201d;
+  background: linear-gradient(135deg, #ffe38b, #efa94b 72%);
+  box-shadow: 0 5px 0 #8a5630, 0 12px 30px rgba(255, 182, 72, 0.25);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease;
+}
+
+.solve-puzzle-button::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(110deg, transparent 25%, rgba(255, 255, 255, 0.48) 45%, transparent 65%);
+  transform: translateX(-120%);
+  animation: solveShine 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.solve-puzzle-button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow: 0 7px 0 #8a5630, 0 16px 34px rgba(255, 182, 72, 0.32);
+}
+
+.solve-puzzle-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 #8a5630, 0 7px 18px rgba(255, 182, 72, 0.24);
+}
+
+.solve-puzzle-button:focus-visible {
+  outline: 3px solid var(--cream);
+  outline-offset: 4px;
+}
+
+.solve-puzzle-button__crest {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 2px solid rgba(68, 39, 32, 0.48);
+  border-radius: 8px 8px 12px 12px;
+  background: rgba(255, 246, 198, 0.58);
+  box-shadow: inset 0 -4px rgba(171, 99, 43, 0.22);
+  font-size: 19px;
+}
+
+.solve-puzzle-button__copy,
+.solve-puzzle-button__copy strong,
+.solve-puzzle-button__copy small {
+  display: block;
+}
+
+.solve-puzzle-button__copy strong {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.solve-puzzle-button__copy small {
+  margin-top: 3px;
+  color: rgba(70, 43, 35, 0.72);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+}
+
+.solve-puzzle-button__arrow {
+  position: relative;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+body.game-phase--ready .solve-puzzle-button,
+.board-frame.board-phase--ready + .draw-callout + .solve-puzzle-button,
+.board-frame[data-phase="ready"] + .draw-callout + .solve-puzzle-button {
+  animation: solveReady 900ms steps(4, end) infinite;
+}
+
+.solve-puzzle-button:not([hidden]) {
+  animation: solveReady 900ms steps(4, end) infinite;
+}
+
+body.game-phase--planning #companyPhase,
+body[data-game-phase="planning"] #companyPhase,
+body:has(.board-frame[data-phase="planning"]) #companyPhase {
+  color: var(--violet);
+}
+
+body.game-phase--ready #companyPhase,
+body[data-game-phase="ready"] #companyPhase,
+body:has(.board-frame[data-phase="ready"]) #companyPhase {
+  color: var(--gold);
+}
+
+body.game-phase--executing #companyPhase,
+body[data-game-phase="executing"] #companyPhase,
+body:has(.board-frame[data-phase="executing"]) #companyPhase {
+  color: var(--mint);
+}
+
+body.game-phase--won #companyPhase,
+body[data-game-phase="won"] #companyPhase,
+body:has(.board-frame[data-phase="won"]) #companyPhase {
+  color: var(--cream);
+}
+
+body.game-phase--planning #companyPhase i,
+body[data-game-phase="planning"] #companyPhase i,
+body:has(.board-frame[data-phase="planning"]) #companyPhase i { background: var(--violet); box-shadow: 0 0 8px var(--violet); }
+body.game-phase--ready #companyPhase i,
+body[data-game-phase="ready"] #companyPhase i,
+body:has(.board-frame[data-phase="ready"]) #companyPhase i { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+body.game-phase--executing #companyPhase i,
+body[data-game-phase="executing"] #companyPhase i,
+body:has(.board-frame[data-phase="executing"]) #companyPhase i { background: var(--mint); box-shadow: 0 0 8px var(--mint); animation: phaseBlink 520ms steps(2, end) infinite; }
+body.game-phase--won #companyPhase i,
+body[data-game-phase="won"] #companyPhase i,
+body:has(.board-frame[data-phase="won"]) #companyPhase i { background: var(--cream); box-shadow: 0 0 8px var(--cream); }
+
+body.game-phase--executing .planning-ghost,
+body[data-game-phase="executing"] .planning-ghost,
+.board-frame.board-phase--executing .planning-ghost,
+.board-frame[data-phase="executing"] .planning-ghost {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.board-frame.board-phase--planning,
+.board-frame[data-phase="planning"] {
+  border-color: #62526e;
+}
+
+.board-frame.board-phase--ready,
+.board-frame[data-phase="ready"] {
+  border-color: #9c7442;
+  box-shadow:
+    0 0 0 2px #17121e,
+    0 0 0 5px #9c7442,
+    0 10px 0 #1a1320,
+    0 0 25px rgba(255, 201, 92, 0.18),
+    0 18px 35px rgba(0, 0, 0, 0.35);
+}
+
+.board-frame.board-phase--executing,
+.board-frame[data-phase="executing"] {
+  border-color: #4b8f70;
+}
+
+.board-frame.board-phase--won,
+.board-frame[data-phase="won"] {
+  border-color: #d9b55e;
+}
+
+body.is-execution-locked .board-frame,
+.board-frame.is-execution-locked,
+.board-frame.is-input-locked,
+.board-frame[data-phase="executing"] {
+  cursor: progress;
+}
+
+body.is-execution-locked .game-board,
+.board-frame.is-execution-locked .game-board,
+.board-frame.is-input-locked .game-board,
+.board-frame[data-phase="executing"] .game-board {
+  pointer-events: none;
+}
+
+.board-frame[data-phase="executing"] {
+  pointer-events: none;
+}
+
+body.is-execution-locked .mission-tools button,
+body.is-execution-locked .campaign-panel button,
+body.is-execution-locked .commander-chip {
+  opacity: 0.42;
+  pointer-events: none;
 }
 
 .live-dot {
@@ -2507,6 +2959,166 @@ dialog::backdrop {
   75% { transform: translate(-50%, -65%) rotate(5deg); }
 }
 
+@keyframes partyStart {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  25% { transform: translate(-50%, -62%) scale(0.94, 1.08) rotate(-4deg); }
+  55% { transform: translate(-50%, -66%) scale(1.08, 0.92) rotate(4deg); }
+}
+
+@keyframes partyAttack {
+  0%, 100% { transform: translate(-50%, -50%); }
+  35% { transform: translate(-68%, -48%) rotate(-7deg) scale(0.94, 1.05); }
+  68% { transform: translate(-34%, -53%) rotate(7deg) scale(1.08, 0.94); }
+}
+
+@keyframes partyCast {
+  0%, 100% { transform: translate(-50%, -50%); filter: none; }
+  35% { transform: translate(-50%, -62%) scale(0.94); filter: brightness(1.35) drop-shadow(0 0 6px var(--violet)); }
+  65% { transform: translate(-50%, -57%) scale(1.08); filter: brightness(1.7) drop-shadow(0 0 11px var(--violet)); }
+}
+
+@keyframes partyHeal {
+  0%, 100% { transform: translate(-50%, -50%); filter: none; }
+  45% { transform: translate(-50%, -60%) scale(1.08); filter: brightness(1.55) drop-shadow(0 0 12px var(--coral)); }
+}
+
+@keyframes ghostRing {
+  0%, 100% { transform: scale(0.9) rotate(0); opacity: 0.42; }
+  50% { transform: scale(1.05) rotate(12deg); opacity: 0.9; }
+}
+
+@keyframes ghostStep {
+  0% { transform: translate(-50%, -50%) scale(0.88); opacity: 0.35; }
+  58% { transform: translate(-50%, -58%) scale(1.05); opacity: 0.82; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+}
+
+@keyframes pickupBurst {
+  0% { transform: scale(0.3); opacity: 0; }
+  35% { opacity: 1; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+
+@keyframes pickupSpark {
+  0% { transform: rotate(0) scale(0.4); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: rotate(90deg) scale(1.35); opacity: 0; }
+}
+
+@keyframes enemyImpact {
+  0% { transform: scale(0.28) rotate(-8deg); opacity: 0; }
+  35% { opacity: 1; }
+  100% { transform: scale(1.55) rotate(18deg); opacity: 0; }
+}
+
+@keyframes fireballFlight {
+  0% { transform: translate(-50%, -50%) translate(0, 0) scale(0.65); opacity: 0; }
+  18% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) translate(var(--fx-dx), var(--fx-dy)) scale(1.35); opacity: 0; }
+}
+
+@keyframes bridgeBuildFx {
+  0% { transform: scaleY(0.08) rotate(-2deg); opacity: 0; }
+  35% { opacity: 1; }
+  75% { transform: scaleY(1.08) rotate(1deg); opacity: 0.9; }
+  100% { transform: scaleY(1); opacity: 0; }
+}
+
+@keyframes healingWave {
+  0% { transform: scale(0.25); opacity: 0.9; }
+  100% { transform: scale(1.65); opacity: 0; }
+}
+
+@keyframes completionFlash {
+  0% { transform: rotate(0) scale(0.2); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: rotate(90deg) scale(1.15); opacity: 0; }
+}
+
+@keyframes pickupSoldier {
+  0% { transform: translateX(-50%); opacity: 1; }
+  45% { transform: translateX(-50%) translateY(-35%) scale(1.16); filter: brightness(1.6) drop-shadow(0 0 8px var(--mint)); }
+  100% { transform: translateX(-50%) translateY(-65%) scale(0.48); opacity: 0; }
+}
+
+@keyframes pickupMage {
+  0% { transform: translateX(-50%) rotate(0); opacity: 1; }
+  55% { transform: translateX(-50%) translateY(-28%) rotate(12deg) scale(1.12); filter: brightness(1.65) drop-shadow(0 0 10px var(--violet)); }
+  100% { transform: translateX(-50%) translateY(-62%) rotate(24deg) scale(0.42); opacity: 0; }
+}
+
+@keyframes pickupBuilder {
+  0% { transform: translateX(-50%) rotate(0); opacity: 1; }
+  35% { transform: translateX(-50%) rotate(-8deg) translateY(-10%); }
+  65% { transform: translateX(-50%) rotate(8deg) translateY(-25%) scale(1.12); filter: brightness(1.45) drop-shadow(0 0 8px var(--gold)); }
+  100% { transform: translateX(-50%) translateY(-58%) scale(0.48); opacity: 0; }
+}
+
+@keyframes pickupHealer {
+  0% { transform: translateX(-50%) scale(1); opacity: 1; }
+  45% { transform: translateX(-50%) translateY(-32%) scale(1.14); filter: brightness(1.55) drop-shadow(0 0 12px var(--coral)); }
+  100% { transform: translateX(-50%) translateY(-65%) scale(0.45); opacity: 0; }
+}
+
+@keyframes goblinDeath {
+  0% { transform: translateX(-50%) rotate(0) scale(1); opacity: 1; }
+  42% { transform: translateX(-58%) rotate(-18deg) scale(1.08, 0.88); filter: brightness(1.7); }
+  100% { transform: translateX(-68%) translateY(35%) rotate(-45deg) scale(0.48); opacity: 0; }
+}
+
+@keyframes orcDeath {
+  0%, 24% { transform: translateX(-50%) rotate(0) scale(1); opacity: 1; }
+  45% { transform: translateX(-43%) rotate(8deg) scale(1.12, 0.9); filter: brightness(1.55) drop-shadow(0 0 7px #f0a45d); }
+  100% { transform: translateX(-35%) translateY(38%) rotate(38deg) scale(0.55); opacity: 0; }
+}
+
+@keyframes ogreDeath {
+  0%, 20% { transform: translateX(-50%) scale(1); opacity: 1; }
+  38% { transform: translateX(-56%) scale(1.14, 0.86); filter: brightness(1.7) drop-shadow(0 0 10px var(--coral)); }
+  55% { transform: translateX(-44%) scale(0.92, 1.1); }
+  100% { transform: translateX(-50%) translateY(42%) rotate(14deg) scale(0.58, 0.34); opacity: 0; }
+}
+
+@keyframes dragonDeath {
+  0% { transform: translateX(-50%) scale(1); opacity: 1; }
+  35% { transform: translateX(-50%) translateY(-12%) scale(1.12); filter: brightness(2) hue-rotate(28deg) drop-shadow(0 0 13px var(--violet)); }
+  62% { transform: translateX(-50%) translateY(-20%) rotate(-6deg) scale(0.92); opacity: 0.85; }
+  100% { transform: translateX(-50%) translateY(-52%) rotate(12deg) scale(0.34); opacity: 0; }
+}
+
+@keyframes bridgePlanksBuild {
+  0% { transform: scaleY(0); opacity: 0; }
+  35% { opacity: 1; }
+  78% { transform: scaleY(1.08); }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes healingCell {
+  0%, 100% { filter: brightness(1); }
+  45% { filter: brightness(1.5) saturate(1.2) drop-shadow(0 0 8px rgba(255, 118, 111, 0.75)); }
+}
+
+@keyframes completionCell {
+  0%, 100% { filter: brightness(1); }
+  35% { filter: brightness(1.8) drop-shadow(0 0 10px var(--gold)); }
+  65% { filter: brightness(1.35) drop-shadow(0 0 14px var(--mint)); }
+}
+
+@keyframes solveShine {
+  0%, 38% { transform: translateX(-120%); }
+  72%, 100% { transform: translateX(120%); }
+}
+
+@keyframes solveReady {
+  0%, 100% { box-shadow: 0 5px 0 #8a5630, 0 12px 30px rgba(255, 182, 72, 0.22); }
+  50% { box-shadow: 0 5px 0 #8a5630, 0 12px 38px rgba(255, 214, 126, 0.48); }
+}
+
+@keyframes phaseBlink {
+  50% { opacity: 0.35; }
+}
+
 @keyframes confettiBurst {
   0% { transform: translate(0, 0) rotate(0); opacity: 1; }
   100% { transform: translate(var(--tx), var(--ty)) rotate(var(--spin)); opacity: 0; }
@@ -2641,6 +3253,11 @@ dialog::backdrop {
     padding: 35px 8px 27px;
   }
 
+  .solve-puzzle-button {
+    width: min(420px, calc(100% - 12px));
+    min-height: 60px;
+  }
+
   .objective-ribbon {
     margin-bottom: 10px;
   }
@@ -2712,6 +3329,23 @@ dialog::backdrop {
     min-height: 275px;
     border-radius: 12px;
   }
+
+  .solve-puzzle-button {
+    grid-template-columns: 34px minmax(0, 1fr) 22px;
+    width: calc(100% - 4px);
+    min-height: 54px;
+    gap: 8px;
+    padding: 7px 9px;
+  }
+
+  .solve-puzzle-button__crest {
+    width: 34px;
+    height: 34px;
+    font-size: 16px;
+  }
+
+  .solve-puzzle-button__copy strong { font-size: 10px; }
+  .solve-puzzle-button__copy small { font-size: 7px; }
 
   .route-shadow { stroke-width: 9px; }
   .route-line { stroke-width: 5px; }

@@ -109,6 +109,8 @@
             ></div>
             <svg class="route-layer" id="routeLayer" aria-hidden="true"></svg>
             <div class="party-token" id="partyToken" aria-hidden="true"></div>
+            <div class="planning-ghost" id="planningGhost" aria-hidden="true" hidden></div>
+            <div class="execution-fx-layer" id="executionFxLayer" aria-hidden="true" hidden></div>
             <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
           </div>
 
@@ -116,13 +118,21 @@
             <span class="draw-callout__mouse" aria-hidden="true">↗</span>
             <span id="statusText"><b>PRESS + DRAG</b> from your commander</span>
           </div>
+          <button class="solve-puzzle-button" id="solvePuzzleButton" type="button" hidden>
+            <span class="solve-puzzle-button__crest" aria-hidden="true">✦</span>
+            <span class="solve-puzzle-button__copy">
+              <strong>SOLVE PUZZLE</strong>
+              <small>Watch your plan march</small>
+            </span>
+            <span class="solve-puzzle-button__arrow" aria-hidden="true">→</span>
+          </button>
         </div>
       </section>
 
       <aside class="company-panel panel">
         <div class="panel-heading">
-          <span class="eyebrow">YOUR COMPANY</span>
-          <span class="live-dot"><i></i> LIVE</span>
+          <span class="eyebrow" id="companyHeading">PLANNED COMPANY</span>
+          <span class="live-dot" id="companyPhase" role="status" aria-live="polite"><i></i><span id="companyPhaseText">PLANNING</span></span>
         </div>
 
         <div class="roster" id="roster">
@@ -376,8 +386,9 @@
         <li><a href="https://kenney.nl/assets/tiny-farm" target="_blank" rel="noreferrer">Tiny Farm</a> — builder by Kenney</li>
         <li><a href="https://kenney.nl/assets/tiny-battle" target="_blank" rel="noreferrer">Tiny Battle</a> — water tiles by Kenney</li>
         <li><a href="https://opengameart.org/content/tiny-creatures" target="_blank" rel="noreferrer">Tiny Creatures</a> — goblins & dragons by Clint Bellanger</li>
+        <li><a href="https://kenney.nl/assets/rpg-audio" target="_blank" rel="noreferrer">RPG Audio</a> — execution foley by Kenney, CC0 1.0</li>
       </ul>
-      <p class="credits-note">Music and sound effects are synthesized in your browser with Web Audio.</p>
+      <p class="credits-note">Execution foley is stored locally from Kenney's CC0 RPG Audio pack. Music, vocal chirps, and tonal accents are synthesized in your browser with Web Audio.</p>
     </dialog>
 
     <script type="module" src="./js/game.js"></script>

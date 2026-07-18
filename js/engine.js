@@ -14,6 +14,10 @@ export const TILE_DEFS = Object.freeze({
   "~": { type: "river", walkable: true, label: "River · needs a builder" },
   // The Second Wind: this is the pack's only new recruit type.
   f: { type: "healer", walkable: true, label: "Field healer · restores every tired soldier" },
+  // Formation Checkpoints: only the ready-soldier count is inspected; nothing is spent.
+  "1": { type: "formation", walkable: true, required: 1, label: "Formation checkpoint · exactly 1 ready soldier" },
+  "2": { type: "formation", walkable: true, required: 2, label: "Formation checkpoint · exactly 2 ready soldiers" },
+  "3": { type: "formation", walkable: true, required: 3, label: "Formation checkpoint · exactly 3 ready soldiers" },
   y: { type: "switch", walkable: true, channel: "sun", label: "Sun switch" },
   Y: { type: "gate", walkable: true, channel: "sun", label: "Sun gate" },
   q: { type: "switch", walkable: true, channel: "moon", label: "Moon switch" },
@@ -196,6 +200,18 @@ export function enterTile(state, tileCode, position) {
       next.soldiers += restored;
       next.tired = 0;
       next.events.push({ ...baseEvent, restored });
+      break;
+    }
+    case "formation": {
+      const actual = next.soldiers;
+      if (actual !== tile.required) {
+        const requiredUnit = tile.required === 1 ? "soldier" : "soldiers";
+        const actualUnit = actual === 1 ? "soldier" : "soldiers";
+        return failedTransition(
+          `Formation checkpoint requires exactly ${tile.required} ready ${requiredUnit} — you have ${actual} ready ${actualUnit}.`,
+        );
+      }
+      next.events.push({ ...baseEvent, required: tile.required, actual });
       break;
     }
     case "river":

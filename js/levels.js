@@ -2,6 +2,7 @@ import { parseLevel } from "./engine.js";
 import { RELIEF_ROUTES_RAW } from "./packs/relief-routes.js";
 import { THREE_BANNERS_RAW } from "./packs/three-banners.js";
 import { SECOND_WIND_RAW } from "./packs/second-wind.js";
+import { FORMATION_MUSTER_RAW } from "./packs/formation-muster.js";
 
 const RAW_LEVELS = [
   {
@@ -160,6 +161,7 @@ const GREEN_MARCH_LEVELS = RAW_LEVELS.map((level) => parseLevel({ ...level, mode
 const RELIEF_ROUTE_LEVELS = RELIEF_ROUTES_RAW.map(parseLevel);
 const THREE_BANNER_LEVELS = THREE_BANNERS_RAW.map(parseLevel);
 const SECOND_WIND_LEVELS = SECOND_WIND_RAW.map((level) => parseLevel({ ...level, mode: "campaign" }));
+const FORMATION_MUSTER_LEVELS = FORMATION_MUSTER_RAW.map((level) => parseLevel({ ...level, mode: "campaign" }));
 
 export const PACKS = Object.freeze([
   {
@@ -201,6 +203,16 @@ export const PACKS = Object.freeze([
     description: "Begin alone, spend the company wisely, and time each healer's rally to reuse tired soldiers.",
     accent: "coral",
     levels: SECOND_WIND_LEVELS,
+  },
+  {
+    id: "formation-muster",
+    number: 5,
+    name: "The Exacting Muster",
+    shortName: "Exacting Muster",
+    eyebrow: "EXACT FORMATIONS",
+    description: "Match exact ready-soldier formations, then turn recruits, battles, specialists, seals, and recovery into one precise campaign.",
+    accent: "water",
+    levels: FORMATION_MUSTER_LEVELS,
   },
 ]);
 

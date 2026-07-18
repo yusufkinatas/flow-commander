@@ -1,6 +1,6 @@
 # Flow Commander
 
-A complete, dependency-free browser puzzle game about drawing exact routes and assembling the right tiny company. The campaign contains 24 handcrafted puzzles across four distinct level packs.
+A complete, dependency-free browser puzzle game about drawing exact routes and assembling the right tiny company. The campaign contains 49 handcrafted puzzles across five distinct level packs.
 
 ## Play
 
@@ -26,6 +26,7 @@ Controls:
 - **Relief Routes — 6 levels.** Feed every peaceful monster from a neighboring route tile while staying inside a strict movement budget. One tile can serve several monsters, so spatial coverage matters more than choosing a fork.
 - **The Three Banners — 5 levels.** Command Alder, Bramble, and Cinder in order. Their trails lock behind them and cannot cross; later maps add beacons, mud, supply caches, and one-way marching arrows.
 - **The Second Wind — 3 levels.** Return to the lone original commander with no army, gather units en route, and use one new Healer recruit to restore tired soldiers at exactly the right moment.
+- **The Exacting Muster — 25 levels.** Learn the campaign from first principles, then master Formation Checkpoints that admit exactly one, two, or three ready soldiers. Recruits, combat, specialists, seals, and healing gain new order-sensitive consequences across a research-backed sawtooth curve.
 
 Each pack builds toward a deliberately interlocked finale, while progress is stored separately per pack.
 
@@ -35,7 +36,9 @@ Each pack builds toward a deliberately interlocked finale, while progress is sto
 npm test
 ```
 
-The exhaustive search validator uses the same transition engine as gameplay. It fails unless every level has exactly one complete solution, the search finishes without hitting its safety limit, each mechanic is exercised, routes validate in play order, and the measured complexity strictly rises through Packs 2–4. Pack 4 additionally proves that every healer restores tired soldiers between two separate combat costs. `tests/curate-relief.mjs` is also included as a deterministic mixed-authorship tool: it explores terrain variants, rejects zero- and multi-solution maps, and ranks the survivors by search-tree complexity.
+The exhaustive search validator uses the same transition engine as gameplay. It fails unless every level has exactly one complete solution, the search finishes without hitting its safety limit, each mechanic is exercised, and routes replay in execution order with the same immutable trace used by Planning. Pack 4 additionally proves that every healer restores tired soldiers between two separate combat costs. Pack 5 checks all 25 intended routes, mechanic necessity, exact checkpoint counts, deterministic replay, the authored sawtooth, and the required complexity distribution. `tests/curate-relief.mjs` remains available as a deterministic mixed-authorship tool: it explores terrain variants, rejects zero- and multi-solution maps, and ranks survivors by search-tree complexity.
+
+Pack 5's design basis, mechanic selection, roster, reviewer record, and solver report live in `docs/`. Formation Checkpoints are also available as `=1`, `=2`, and `=3` brushes in the in-game Level Designer.
 
 ## Art and sound
 

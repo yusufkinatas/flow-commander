@@ -30,7 +30,7 @@ The project keeps a compact selection from the larger pack so movement and event
 | `kenney-rpg/chop.ogg` | Builder construction strike or heavy melee hit |
 | `kenney-rpg/creak1.ogg` | Bridge construction/wood strain |
 | `kenney-rpg/creak3.ogg` | Bridge settling or large-enemy stagger/death layer |
-| `kenney-rpg/doorOpen_1.ogg` | Gate opening or execution reveal |
+| `kenney-rpg/doorOpen_1.ogg` | Gate opening, Formation Checkpoint inspection, or execution reveal |
 | `kenney-rpg/doorClose_1.ogg` | Bridge/gate completion punctuation |
 | `kenney-rpg/drawKnife1.ogg` | Soldier attack wind-up |
 | `kenney-rpg/knifeSlice.ogg` | Soldier attack impact |

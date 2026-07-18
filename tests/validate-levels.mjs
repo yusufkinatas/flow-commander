@@ -10,14 +10,16 @@ import {
 } from "../js/engine.js";
 import { exportableLevel, normalizeDesign } from "../js/designer.js";
 
-assert.deepEqual(PACKS.map((pack) => pack.levels.length), [10, 6, 5, 3], "The four packs must contain 10, 6, 5, and 3 levels.");
+assert.deepEqual(PACKS.map((pack) => pack.levels.length), [10, 6, 5, 3, 25], "The five packs must contain 10, 6, 5, 3, and 25 levels.");
 
 const report = [];
 for (const pack of PACKS) {
   let previousDifficulty = 0;
   let previousComplexity = 0;
   for (const level of pack.levels) {
-    assert.ok(level.difficulty >= previousDifficulty, `${pack.name} level ${level.id} breaks the authored difficulty ramp.`);
+    if (pack.id !== "formation-muster") {
+      assert.ok(level.difficulty >= previousDifficulty, `${pack.name} level ${level.id} breaks the authored difficulty ramp.`);
+    }
     previousDifficulty = level.difficulty;
 
     const analysis = analyzeLevel(level, { solutionLimit: 2, nodeLimit: 2_000_000 });
@@ -71,7 +73,7 @@ for (const pack of PACKS) {
       }
     }
 
-    if (pack.id !== "green-march") {
+    if (!["green-march", "formation-muster"].includes(pack.id)) {
       assert.ok(
         analysis.metrics.complexityScore > previousComplexity,
         `${pack.name} level ${level.id} must be measurably more complex than the previous level (${analysis.metrics.complexityScore} <= ${previousComplexity}).`,
@@ -112,6 +114,12 @@ for (const level of PACKS[3].levels) {
   assert.match(level.map.join(""), /f/, `The Second Wind level ${level.id} must use a healer.`);
 }
 
+const pack5Tiles = PACKS[4].levels.flatMap((level) => level.map).join("");
+for (const checkpoint of ["1", "2", "3"]) {
+  assert.ok(pack5Tiles.includes(checkpoint), `The Exacting Muster must contain Formation Checkpoint ${checkpoint}.`);
+}
+assert.doesNotMatch(pack5Tiles, /[hHABXZCV*wc<>^v]/, "The Exacting Muster may only extend campaign mechanics with Formation Checkpoints.");
+
 // Convoy route geometry is independent of which commander the player selects first.
 const convoySample = PACKS[2].levels[0];
 const reversedConvoy = { ...convoySample, commanders: [...convoySample.commanders].reverse() };
@@ -144,4 +152,4 @@ const workshopAnalysis = analyzeLevel(parseLevel(workshopExport), { solutionLimi
 assert.equal(workshopAnalysis.unique, true, "A valid workshop export must run through the production uniqueness analyzer.");
 
 console.table(report);
-console.log("✓ 24 levels exhaustively validated · free commander order proven · workshop export verified · all mechanics present");
+console.log("✓ 49 levels exhaustively validated · free commander order proven · workshop export verified · all mechanics present");

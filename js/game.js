@@ -435,6 +435,12 @@ class Soundboard {
         this.sample("gateOpen", step, { volume: 0.3, rate: 1.18 });
         this.tone(280, 0.18, "square", 0.07, 0, 105);
         break;
+      case "formation":
+        this.sample("gateOpen", step, { volume: 0.28, rate: 1.42 });
+        this.tone(196, 0.06, "square", 0.07);
+        this.tone(392, 0.11, "triangle", 0.075, 0.06);
+        this.tone(784, 0.14, "sine", 0.055, 0.12);
+        break;
       case "blocked":
         this.tone(92, 0.12, "square", 0.075);
         break;
@@ -701,6 +707,13 @@ function renderTileContents(cell, tileCode, r, c) {
       cell.append(textNode(className, symbol), textNode("tile-label", `${def.channel} gate`));
       break;
     }
+    case "formation":
+      cell.append(
+        textNode("formation-gate", `=${def.required}`),
+        textNode("tile-badge tile-badge--formation", String(def.required)),
+        textNode("tile-label", `EXACTLY ${def.required} READY`),
+      );
+      break;
     case "hungry": {
       const monster = def.need === 1 ? ASSETS.mossling : ASSETS.emberling;
       cell.append(image(monster, `entity entity--hungry entity--hungry-${def.need}`));
@@ -833,8 +846,20 @@ function renderLevelList() {
   renderPackSelector();
 }
 
+function levelUsesFormation(level = session.level) {
+  return level.map.some((row) => /[123]/.test(row));
+}
+
 function renderRules() {
-  const rules = session.pack.id === "second-wind"
+  const formationRules = session.pack.id === "formation-muster" || levelUsesFormation();
+  const rules = formationRules
+    ? [
+        ["Plan one clean route", "Move orthogonally, rewind freely, and review the complete trail before execution."],
+        ["Match the formation", "A numbered checkpoint admits exactly that many ready soldiers — no more and no fewer."],
+        ["Ready means ready", "Only the READY soldier number counts; every other companion is ignored."],
+        ["Inspection costs nothing", "Passing a checkpoint checks the line but does not consume anyone."],
+      ]
+    : session.pack.id === "second-wind"
     ? [
         ["Build the company en route", "Every mission begins with the lone commander and no ready units."],
         ["Spend soldiers at goblins", "Handled soldiers become tired, exactly as they do in the Green March."],
@@ -863,7 +888,9 @@ function renderRules() {
         ];
   dom.rulesList.innerHTML = rules.map(([title, copy]) => `<li><b>${title}</b><span>${copy}</span></li>`).join("");
 
-  const legend = session.pack.id === "second-wind"
+  const legend = formationRules
+    ? [["formation", "Exact formation"], ["recruit", "Recruit"], ["danger", "Danger"]]
+    : session.pack.id === "second-wind"
     ? [["recruit", "Recruit"], ["healer", "Healer"], ["danger", "Danger"]]
     : session.level.mode === "relief"
     ? [["hungry", "Hungry"], ["served", "Served"], ["relief", "Relief trail"]]
@@ -958,6 +985,7 @@ function renderObjectiveTiles() {
     const planned = planning && plannedKeys.has(cell.dataset.key);
     cell.classList.toggle("is-planned-bridge", planned && tile?.type === "river");
     cell.classList.toggle("is-planned-open", planned && tile?.type === "gate");
+    cell.classList.toggle("is-planned-formation-open", planned && tile?.type === "formation");
   });
 }
 
@@ -1217,6 +1245,7 @@ function eventStatus(event) {
       : "<b>HEALER RALLIED!</b> No one is tired yet — timing matters.";
     case "switch": return `<b>${event.channel.toUpperCase()} SWITCH LIT!</b> Its matching gate is open.`;
     case "gate": return `<b>${event.channel.toUpperCase()} GATE OPEN!</b> March through.`;
+    case "formation": return `<b>FORMATION APPROVED!</b> Exactly ${event.required} ready soldier${event.required === 1 ? " stands" : "s stand"} in the line.`;
     case "delivery": {
       const count = event.targets.length;
       return `<b>${count > 1 ? "DOUBLE DELIVERY!" : "MEAL DELIVERED!"}</b> A hunger badge fills beside the trail.`;
@@ -1244,6 +1273,7 @@ function planningEventStatus(events = []) {
       : "<b>PLANNED HEALER</b> No tired soldiers would be restored here.";
     case "switch": return `<b>PLANNED SWITCH</b> The ${event.channel} seal will remain open.`;
     case "gate": return `<b>PLANNED GATE</b> The ${event.channel} seal is available before this step.`;
+    case "formation": return `<b>PLANNED INSPECTION</b> The preview line has exactly ${event.required} ready soldier${event.required === 1 ? "" : "s"}.`;
     case "delivery": return `<b>PLANNED DELIVERY</b> ${event.targets.length} hunger badge${event.targets.length === 1 ? " fills" : "s fill"} beside this tile.`;
     case "beacon": return "<b>PLANNED BEACON</b> This signal is included in the route set.";
     case "supply": return `<b>PLANNED SUPPLIES</b> The movement budget grows by ${event.bonusMoves}.`;
@@ -1262,6 +1292,7 @@ function audioCue(event) {
   if (event.type === "healer") return "healer";
   if (event.type === "switch") return "switch";
   if (event.type === "gate") return "gate";
+  if (event.type === "formation") return "formation";
   if (["delivery", "beacon", "mud", "supply", "current"].includes(event.type)) return event.type;
   return "step";
 }
@@ -1695,6 +1726,7 @@ function executionEventLabel(event) {
   if (event.type === "builder") return "BUILDER PICKUP";
   if (event.type === "river") return "BRIDGE BUILD";
   if (event.type === "healer") return event.restored ? "HEALING" : "HEALER PICKUP";
+  if (event.type === "formation") return `FORMATION =${event.required}`;
   if (event.type === "goal" || event.type === "commanderGoal") return "STANDARD SECURED";
   return event.type.toUpperCase();
 }
@@ -1808,6 +1840,14 @@ async function presentExecutionEvent(event, position, runId, eventPause, fromPos
       effect = spawnExecutionFx("bridge", position);
       audio.play("river", session.execution.completedSteps);
       pause = Math.max(pause, 340);
+      break;
+    case "formation":
+      cellClass = "is-event-formation-open";
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx("formation", position);
+      pulseClass(dom.party, "is-stepping");
+      audio.play("formation", session.execution.completedSteps);
+      pause = Math.max(pause, 380);
       break;
     case "goal":
     case "commanderGoal":
@@ -2079,7 +2119,7 @@ function startDesignerPlaytest(level, context) {
     shortName: "Workshop",
     eyebrow: "LIVE PLAYTEST",
     description: "This browser-saved draft is running in the real game rules. Return to the workshop to keep painting.",
-    accent: "gold",
+    accent: levelUsesFormation(level) ? "water" : "gold",
     levels: [level],
   };
   session.levelIndex = 0;

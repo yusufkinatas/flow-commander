@@ -224,11 +224,23 @@ assert.ok(audioPaths.every((assetPath) => assetPath.startsWith("./assets/audio/k
 const executionCueNames = [
   "draw", "move", "commanderReady", "recruit", "mage", "builder", "healer", "heal",
   "soldierAttack", "soldierImpact", "goblinDeath", "orcDeath", "ogreDeath", "dragon",
-  "dragonDeath", "river", "gate", "win",
+  "dragonDeath", "river", "gate", "formation", "win",
 ];
 for (const cue of executionCueNames) {
   assert.match(game, new RegExp(`case\\s+["']${cue}["']\\s*:`), `Soundboard.play() must retain the ${cue} cue.`);
 }
+
+assert.match(game, /case\s+["']formation["']\s*:[\s\S]*formation-gate/, "Formation Checkpoints must render a permanent shape-and-text marker.");
+assert.match(game, /is-planned-formation-open/, "Formation Checkpoints must expose a planning-preview state.");
+assert.match(game, /is-event-formation-open/, "Formation Checkpoints must expose a distinct execution state.");
+assert.match(cssWithoutComments, /\.formation-gate\b/, "Formation Checkpoints must have a dedicated silhouette independent of color.");
+assert.match(cssWithoutComments, /\.execution-fx--formation\b/, "Formation Checkpoints must have a dedicated execution effect.");
+assert.match(game, /function\s+levelUsesFormation\s*\(/, "Workshop playtests must be able to detect Formation Checkpoints from level data.");
+assert.match(game, /session\.pack\.id\s*===\s*["']formation-muster["']\s*\|\|\s*levelUsesFormation\s*\(\s*\)/, "Formation rules and legends must work in both Pack 5 and workshop playtests.");
+assert.match(cssWithoutComments, /\.route-line--water\b/, "Pack 5 planned and executed routes must use the water accent.");
+assert.match(cssWithoutComments, /\.route-head--water\b/, "Pack 5 route heads must use the water accent.");
+assert.match(cssWithoutComments, /\.campaign-panel\s*\{[^}]*max-height\s*:\s*calc\(100vh\s*-\s*122px\)[^}]*overflow\s*:\s*hidden/s, "Desktop campaign navigation must stay bounded for the 25-level pack.");
+assert.match(cssWithoutComments, /\.level-list\s*\{[^}]*overflow-y\s*:\s*auto/s, "Desktop level navigation must scroll independently when a pack is long.");
 
 const audioReadme = read("assets/audio/README.md");
 const license = read("assets/audio/kenney-rpg/License.txt");

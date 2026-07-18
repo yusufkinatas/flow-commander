@@ -43,10 +43,12 @@ body {
 body[data-pack="mint"] { --pack-accent: var(--mint); }
 body[data-pack="violet"] { --pack-accent: var(--violet); }
 body[data-pack="coral"] { --pack-accent: var(--coral); }
+body[data-pack="water"] { --pack-accent: var(--water); }
 
 body[data-pack="mint"] .sky-glow--one { opacity: 0.14; }
 body[data-pack="violet"] .sky-glow--two { opacity: 0.15; }
 body[data-pack="coral"] .sky-glow--one { background: var(--coral); opacity: 0.13; }
+body[data-pack="water"] .sky-glow--two { background: var(--water); opacity: 0.16; }
 
 body::before {
   position: fixed;
@@ -263,6 +265,13 @@ a:focus-visible {
   padding: 18px;
 }
 
+.campaign-panel {
+  display: flex;
+  max-height: calc(100vh - 122px);
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .panel-heading {
   display: flex;
   align-items: center;
@@ -354,14 +363,24 @@ a:focus-visible {
 }
 
 .pack-tab small { font-size: 6px; }
+.pack-tab:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  grid-template-columns: 25px minmax(0, 1fr) auto;
+  min-height: 48px;
+  padding-inline: 10px;
+  text-align: left;
+}
+.pack-tab:last-child:nth-child(odd) strong { text-align: left; }
 .pack-tab--gold.is-current { border-color: rgba(255, 201, 92, 0.55); background: rgba(255, 201, 92, 0.11); }
 .pack-tab--mint.is-current { border-color: rgba(115, 224, 164, 0.55); background: rgba(115, 224, 164, 0.11); }
 .pack-tab--violet.is-current { border-color: rgba(169, 151, 255, 0.58); background: rgba(169, 151, 255, 0.12); }
 .pack-tab--coral.is-current { border-color: rgba(255, 118, 111, 0.58); background: rgba(255, 118, 111, 0.12); }
+.pack-tab--water.is-current { border-color: rgba(93, 169, 214, 0.6); background: rgba(93, 169, 214, 0.12); }
 .pack-tab--gold.is-current > span { background: var(--gold); }
 .pack-tab--mint.is-current > span { background: var(--mint); }
 .pack-tab--violet.is-current > span { background: var(--violet); }
 .pack-tab--coral.is-current > span { background: var(--coral); }
+.pack-tab--water.is-current > span { background: var(--water); }
 .pack-tab.is-complete::after {
   position: absolute;
   top: 3px;
@@ -373,7 +392,13 @@ a:focus-visible {
 
 .level-list {
   display: grid;
+  min-height: 0;
   gap: 5px;
+  padding-right: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--pack-accent), transparent 38%) transparent;
+  scrollbar-width: thin;
 }
 
 .level-button {
@@ -821,6 +846,14 @@ a:focus-visible {
 .cell--supply { background-image: radial-gradient(circle, rgba(255, 201, 92, 0.2), transparent 60%), url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png"); }
 .entity--supply { width: 69%; animation: supplyPulse 1.2s steps(2, end) infinite; }
 
+.cell--formation {
+  background-color: #4c7995;
+  background-image:
+    linear-gradient(90deg, rgba(27, 47, 68, 0.5) 0 12%, transparent 12% 88%, rgba(27, 47, 68, 0.5) 88%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
+  box-shadow: inset 0 0 0 2px rgba(202, 239, 255, 0.2);
+}
+
 .beacon-symbol,
 .current-arrow,
 .standard-gem {
@@ -1031,6 +1064,14 @@ a:focus-visible {
   filter: brightness(1.15);
 }
 
+.cell.is-planned-formation-open .formation-gate {
+  color: #eaffff;
+  border-color: rgba(218, 248, 255, 0.78);
+  border-style: dashed;
+  background: repeating-linear-gradient(90deg, rgba(105, 197, 228, 0.78) 0 6px, rgba(38, 92, 126, 0.82) 6px 9px);
+  box-shadow: 0 0 11px rgba(93, 169, 214, 0.55), inset 0 -7px rgba(25, 60, 84, 0.34);
+}
+
 .cell--preview-bridge .bridge-planks,
 .cell.is-planned-bridge .bridge-planks {
   opacity: 0.32;
@@ -1073,6 +1114,13 @@ a:focus-visible {
   box-shadow: 0 2px 0 #853f49;
 }
 
+.tile-badge--formation {
+  color: #173147;
+  border-color: #dcf6ff;
+  background: #8ed8ee;
+  box-shadow: 0 2px 0 #326b8c;
+}
+
 .tile-label {
   position: absolute;
   z-index: 5;
@@ -1095,6 +1143,7 @@ a:focus-visible {
 
 .switch-symbol,
 .gate-symbol,
+.formation-gate,
 .start-ring {
   position: absolute;
   z-index: 3;
@@ -1104,6 +1153,17 @@ a:focus-visible {
   border-radius: 8px;
   font-weight: 900;
   line-height: 1;
+}
+
+.formation-gate {
+  inset: 8% 13%;
+  color: #e9faff;
+  border: 3px double #c6edff;
+  background: repeating-linear-gradient(90deg, #5da9d6 0 6px, #315c7c 6px 9px);
+  box-shadow: inset 0 -7px rgba(24, 58, 82, 0.42), 0 4px 0 rgba(29, 38, 53, 0.52);
+  font-size: clamp(12px, 1.35vw, 18px);
+  letter-spacing: -0.08em;
+  text-shadow: 0 2px #29445d;
 }
 
 .switch-symbol {
@@ -1139,6 +1199,11 @@ a:focus-visible {
 .cell--resolved .gate-symbol {
   transform-origin: bottom;
   animation: gateOpen 320ms steps(4, end) forwards;
+}
+
+.cell--formation.cell--resolved .formation-gate {
+  transform-origin: bottom;
+  animation: formationOpen 360ms steps(5, end) forwards;
 }
 
 .start-ring {
@@ -1219,13 +1284,8 @@ a:focus-visible {
 .route-line--violet,
 .route-line--sage { stroke: var(--violet); filter: drop-shadow(0 0 5px rgba(169, 151, 255, 0.55)); }
 .route-line--captain { stroke: var(--coral); filter: drop-shadow(0 0 5px rgba(255, 118, 111, 0.55)); }
+.route-line--water,
 .route-line--warden { stroke: var(--water); filter: drop-shadow(0 0 5px rgba(93, 169, 214, 0.55)); }
-
-.route-head--mint { fill: #d5ffe7; stroke: #2e8a5c; }
-.route-head--violet,
-.route-head--sage { fill: #eeeaff; stroke: #6657ba; }
-.route-head--captain { fill: #ffe3df; stroke: #b94b4b; }
-.route-head--warden { fill: #def5ff; stroke: #39789d; }
 
 .route-head {
   fill: #fff3bf;
@@ -1235,6 +1295,13 @@ a:focus-visible {
   transform-origin: center;
   animation: headPulse 800ms steps(2, end) infinite;
 }
+
+.route-head--mint { fill: #d5ffe7; stroke: #2e8a5c; }
+.route-head--violet,
+.route-head--sage { fill: #eeeaff; stroke: #6657ba; }
+.route-head--captain { fill: #ffe3df; stroke: #b94b4b; }
+.route-head--water,
+.route-head--warden { fill: #def5ff; stroke: #39789d; }
 
 .route-head[hidden] {
   display: none;
@@ -1442,6 +1509,23 @@ a:focus-visible {
   animation: bridgeBuildFx 340ms steps(5, end) forwards;
 }
 
+.execution-fx--formation::before {
+  inset: 5% 8%;
+  border: 4px double #c9f3ff;
+  border-radius: 7px;
+  background: repeating-linear-gradient(90deg, rgba(93, 169, 214, 0.72) 0 7px, rgba(49, 92, 124, 0.5) 7px 10px);
+  box-shadow: 0 0 14px rgba(93, 169, 214, 0.85);
+  animation: formationInspection 380ms steps(6, end) forwards;
+}
+
+.execution-fx--formation::after {
+  inset: 20%;
+  border: 3px solid #effcff;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(201, 243, 255, 0.88);
+  animation: formationStamp 380ms steps(5, end) forwards;
+}
+
 .execution-fx--healing::before,
 .execution-fx--healing::after {
   inset: 4%;
@@ -1469,6 +1553,7 @@ a:focus-visible {
 .cell.is-event-ogre-death .entity--goblin { animation: ogreDeath 400ms steps(7, end) forwards; }
 .cell.is-event-dragon-death .entity--dragon { animation: dragonDeath 460ms steps(8, end) forwards; }
 .cell.is-event-bridge-build .bridge-planks { animation: bridgePlanksBuild 340ms steps(5, end) forwards; }
+.cell.is-event-formation-open .formation-gate { animation: formationOpen 360ms steps(5, end) forwards; transform-origin: bottom; }
 .cell.is-event-healing { animation: healingCell 420ms steps(6, end); }
 .cell.is-event-complete { animation: completionCell 440ms steps(8, end); }
 
@@ -2042,6 +2127,7 @@ body.is-execution-locked .commander-chip {
 .legend-swatch--beacon { background: var(--gold); box-shadow: 0 0 5px var(--gold); }
 .legend-swatch--locked { background: #5f7fa7; }
 .legend-swatch--healer { background: var(--coral); box-shadow: 0 0 5px rgba(255, 118, 111, 0.7); }
+.legend-swatch--formation { border: 1px double #e7f9ff; background: var(--water); box-shadow: 0 0 5px rgba(93, 169, 214, 0.72); }
 
 footer {
   display: flex;
@@ -2699,6 +2785,14 @@ dialog::backdrop {
     url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
 }
 
+.designer-cell--formation {
+  color: #ecfbff;
+  background-color: #4b7895;
+  background-image:
+    repeating-linear-gradient(90deg, rgba(107, 187, 221, 0.9) 0 6px, rgba(42, 82, 111, 0.92) 6px 9px),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
+}
+
 .designer-cell--switch {
   color: #3d2a1c;
   background-color: #d6a64e;
@@ -2930,6 +3024,7 @@ dialog::backdrop {
 @keyframes arrowNudge { 50% { transform: translateX(3px); filter: brightness(1.22); } }
 @keyframes switchGlow { 50% { filter: brightness(1.2); transform: translateY(-2px); } }
 @keyframes gateOpen { to { transform: scaleY(0.12); opacity: 0.45; } }
+@keyframes formationOpen { to { transform: scaleY(0.1); opacity: 0.3; filter: brightness(1.5); } }
 @keyframes headPulse { 50% { transform: scale(1.35); opacity: 0.72; } }
 @keyframes draftRouteMarch { to { stroke-dashoffset: -28; } }
 @keyframes cellPop { 50% { filter: brightness(1.25); } }
@@ -3023,6 +3118,19 @@ dialog::backdrop {
   35% { opacity: 1; }
   75% { transform: scaleY(1.08) rotate(1deg); opacity: 0.9; }
   100% { transform: scaleY(1); opacity: 0; }
+}
+
+@keyframes formationInspection {
+  0% { transform: scaleY(1); opacity: 0.2; }
+  45% { transform: scaleY(1.08); opacity: 1; }
+  100% { transform: scaleY(0.1); opacity: 0; }
+}
+
+@keyframes formationStamp {
+  0% { transform: scale(1.8); opacity: 0; }
+  38% { transform: scale(0.78); opacity: 1; }
+  70% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1.25); opacity: 0; }
 }
 
 @keyframes healingWave {
@@ -3215,8 +3323,11 @@ dialog::backdrop {
   }
 
   .campaign-panel {
+    display: block;
+    max-height: none;
     position: static;
     order: 2;
+    overflow: visible;
   }
 
   .mission-panel { order: 1; }
@@ -3224,6 +3335,8 @@ dialog::backdrop {
 
   .level-list {
     grid-template-columns: repeat(5, 1fr);
+    padding-right: 0;
+    overflow: visible;
   }
 
   .level-button {
@@ -3372,7 +3485,8 @@ dialog::backdrop {
   }
 
   .board-frame--dense .switch-symbol,
-  .board-frame--dense .gate-symbol {
+  .board-frame--dense .gate-symbol,
+  .board-frame--dense .formation-gate {
     inset: 12%;
     border-width: 1px;
     border-radius: 3px;

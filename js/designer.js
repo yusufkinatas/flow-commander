@@ -168,6 +168,58 @@ function appendBrushVisual(node, code, variant = "cell", r = 0, c = 0) {
   node.classList.add(variant === "chip" ? "tile-chip" : "designer-cell");
 }
 
+// The native title tooltip takes about a second to appear, which is far too slow for a
+// palette you sweep across. This is the same information, shown the instant you hover.
+function createTooltip() {
+  const node = document.createElement("div");
+  node.className = "editor-tooltip";
+  node.hidden = true;
+  document.body.append(node);
+
+  let anchor = null;
+  let anchorKey = null;
+
+  function place() {
+    if (!anchor?.isConnected) return hide();
+    const rect = anchor.getBoundingClientRect();
+    const own = node.getBoundingClientRect();
+    const above = rect.top - own.height - 10;
+    const below = above >= 8;
+    node.style.left = `${clamp(rect.left + rect.width / 2 - own.width / 2, 8, Math.max(8, window.innerWidth - own.width - 8))}px`;
+    node.style.top = `${below ? above : rect.bottom + 10}px`;
+    node.classList.toggle("is-below", !below);
+  }
+
+  function show(element, text, key = null) {
+    if (!text) return;
+    anchor = element;
+    anchorKey = key;
+    node.textContent = text;
+    node.hidden = false;
+    place();
+  }
+
+  function hide(element = null) {
+    if (element && anchor !== element) return;
+    anchor = null;
+    anchorKey = null;
+    node.hidden = true;
+  }
+
+  // Hotbar and library rebuild their buttons wholesale, so the hovered node is replaced
+  // under a cursor that never moved. Re-anchor to its successor instead of blinking out.
+  function reattach() {
+    if (!anchorKey || node.hidden) return;
+    const next = document.querySelector(`[data-tooltip-key="${anchorKey}"]`);
+    if (!next) return hide();
+    anchor = next;
+    node.textContent = next.dataset.tooltip ?? node.textContent;
+    place();
+  }
+
+  return { show, hide, reattach };
+}
+
 function copyFallback(textarea) {
   textarea.focus();
   textarea.select();
@@ -213,6 +265,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   }
 
   const workspace = readWorkspace();
+  const tooltip = createTooltip();
   let brushSize = 1;
   let opened = false;
   let painting = false;
@@ -222,6 +275,16 @@ export function createLevelDesigner({ onPlaytest } = {}) {
 
   function activeDesign() {
     return workspace.designs.find((design) => design.id === workspace.activeId) ?? workspace.designs[0];
+  }
+
+  // `key` is stable across re-renders so the tooltip can follow a rebuilt button.
+  function bindTooltip(element, text, key = null) {
+    element.dataset.tooltip = text;
+    if (key) element.dataset.tooltipKey = key;
+    element.addEventListener("pointerenter", () => tooltip.show(element, text, key));
+    element.addEventListener("pointerleave", () => tooltip.hide(element));
+    element.addEventListener("focus", () => tooltip.show(element, text, key));
+    element.addEventListener("blur", () => tooltip.hide(element));
   }
 
   function selectedCode() {
@@ -282,7 +345,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
       wrap.type = "button";
       wrap.className = "editor-hotbar__slot";
       wrap.dataset.slot = String(slot);
-      wrap.title = `${brush?.label ?? code} · key ${(slot + 1) % 10}`;
+      bindTooltip(wrap, `${brush?.label ?? code} · key ${(slot + 1) % 10}`, `hotbar-${slot}`);
       wrap.setAttribute("aria-label", `Slot ${slot + 1}: ${brush?.label ?? code}`);
       wrap.setAttribute("aria-pressed", String(slot === workspace.activeSlot));
 
@@ -296,6 +359,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
       wrap.addEventListener("click", () => setActiveSlot(slot));
       dom.hotbar.append(wrap);
     });
+    tooltip.reattach();
   }
 
   function renderLibrary() {
@@ -310,7 +374,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
       BRUSHES.filter((brush) => brush.group === group).forEach((brush) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.title = brush.label;
+        bindTooltip(button, brush.label, `library-${brush.code}`);
         button.setAttribute("aria-label", `${brush.label}. Load into slot ${workspace.activeSlot + 1}.`);
         appendBrushVisual(button, brush.code, "chip");
         button.classList.toggle("is-selected", brush.code === selectedCode());
@@ -320,6 +384,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
       section.append(heading, tiles);
       dom.library.append(section);
     });
+    tooltip.reattach();
   }
 
   function renderBrushSizes() {
@@ -329,11 +394,12 @@ export function createLevelDesigner({ onPlaytest } = {}) {
       button.type = "button";
       button.className = "editor-size";
       button.textContent = `${size}×${size}`;
-      button.title = `${size}×${size} brush`;
+      bindTooltip(button, `${size}×${size} brush · [ and ] resize`, `brush-size-${size}`);
       button.setAttribute("aria-pressed", String(size === brushSize));
       button.addEventListener("click", () => setBrushSize(size));
       dom.sizes.append(button);
     });
+    tooltip.reattach();
   }
 
   function setActiveSlot(slot) {
@@ -570,6 +636,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   }
 
   function analyzeActiveDesign() {
+    if (dom.analyze.disabled) return;
     setStatus("Searching for a legal winning route…", "working");
     dom.analyze.disabled = true;
     window.setTimeout(() => {
@@ -592,6 +659,48 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     }, 30);
   }
 
+  function createNewDesign() {
+    const design = createDesign(`Untitled March ${workspace.designs.length + 1}`);
+    workspace.designs.push(design);
+    workspace.activeId = design.id;
+    renderActiveDesign();
+    persistNow();
+    dom.name.focus();
+    dom.name.select();
+  }
+
+  function duplicateActiveDesign() {
+    const source = activeDesign();
+    const copy = normalizeDesign({ ...source, id: createId(), name: `${source.name} Copy`, map: [...source.map], updatedAt: Date.now() });
+    workspace.designs.push(copy);
+    workspace.activeId = copy.id;
+    renderActiveDesign();
+    persistNow();
+    setStatus(`Copied to “${copy.name}”. The original is untouched.`, "success");
+  }
+
+  function deleteActiveDesign() {
+    const design = activeDesign();
+    tooltip.hide();
+    if (!window.confirm(`Delete “${design.name}” from this browser?`)) return;
+    workspace.designs = workspace.designs.filter((candidate) => candidate.id !== design.id);
+    if (!workspace.designs.length) workspace.designs.push(createDesign("My First March"));
+    workspace.activeId = workspace.designs[0].id;
+    renderActiveDesign();
+    persistNow();
+  }
+
+  function playtestActiveDesign() {
+    try {
+      const level = parseActiveDesign();
+      persistNow();
+      close();
+      onPlaytest?.(level, { designId: activeDesign().id, raw: exportableLevel(activeDesign()) });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "This map cannot be playtested yet.", "error");
+    }
+  }
+
   function open(designId = null) {
     if (designId && workspace.designs.some((design) => design.id === designId)) workspace.activeId = designId;
     opened = true;
@@ -607,6 +716,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   function close() {
     painting = false;
     opened = false;
+    tooltip.hide();
     persistNow();
     document.body.classList.remove("mode-editor");
     dom.shell.hidden = true;
@@ -614,6 +724,15 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     dom.open?.setAttribute("aria-pressed", "false");
     toggleLibrary(false);
   }
+
+  [
+    [dom.analyze, "Analyze this map for a winning route · A"],
+    [dom.playtest, "Play the map yourself · P"],
+    [dom.create, "Start a blank map · N"],
+    [dom.duplicate, "Copy this map · C"],
+    [dom.remove, "Delete this map · D or Backspace"],
+    [dom.libraryToggle, "Browse every tile · E"],
+  ].forEach(([button, text], index) => button && bindTooltip(button, text, `action-${index}`));
 
   renderHotbar();
   renderBrushSizes();
@@ -638,32 +757,9 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     renderActiveDesign();
     persistNow();
   });
-  dom.create.addEventListener("click", () => {
-    const design = createDesign(`Untitled March ${workspace.designs.length + 1}`);
-    workspace.designs.push(design);
-    workspace.activeId = design.id;
-    renderActiveDesign();
-    persistNow();
-    dom.name.focus();
-    dom.name.select();
-  });
-  dom.duplicate.addEventListener("click", () => {
-    const source = activeDesign();
-    const copy = normalizeDesign({ ...source, id: createId(), name: `${source.name} Copy`, map: [...source.map], updatedAt: Date.now() });
-    workspace.designs.push(copy);
-    workspace.activeId = copy.id;
-    renderActiveDesign();
-    persistNow();
-  });
-  dom.remove.addEventListener("click", () => {
-    const design = activeDesign();
-    if (!window.confirm(`Delete “${design.name}” from this browser?`)) return;
-    workspace.designs = workspace.designs.filter((candidate) => candidate.id !== design.id);
-    if (!workspace.designs.length) workspace.designs.push(createDesign("My First March"));
-    workspace.activeId = workspace.designs[0].id;
-    renderActiveDesign();
-    persistNow();
-  });
+  dom.create.addEventListener("click", createNewDesign);
+  dom.duplicate.addEventListener("click", duplicateActiveDesign);
+  dom.remove.addEventListener("click", deleteActiveDesign);
 
   const metadataBindings = [
     [dom.name, "name"],
@@ -734,23 +830,24 @@ export function createLevelDesigner({ onPlaytest } = {}) {
       event.preventDefault();
       return;
     }
-    if (event.key.toLowerCase() === "e") {
-      toggleLibrary();
+    // Backspace is the reflex for "remove this", so it opens the same confirm as the DELETE button.
+    const action = event.key === "Backspace" ? "d" : event.key.toLowerCase();
+    const shortcuts = {
+      e: toggleLibrary,
+      a: analyzeActiveDesign,
+      p: playtestActiveDesign,
+      n: createNewDesign,
+      c: duplicateActiveDesign,
+      d: deleteActiveDesign,
+    };
+    if (Object.hasOwn(shortcuts, action)) {
+      shortcuts[action]();
       event.preventDefault();
     }
   });
 
   dom.analyze.addEventListener("click", analyzeActiveDesign);
-  dom.playtest.addEventListener("click", () => {
-    try {
-      const level = parseActiveDesign();
-      persistNow();
-      close();
-      onPlaytest?.(level, { designId: activeDesign().id, raw: exportableLevel(activeDesign()) });
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "This map cannot be playtested yet.", "error");
-    }
-  });
+  dom.playtest.addEventListener("click", playtestActiveDesign);
   dom.copy.addEventListener("click", async () => {
     const text = dom.output.value;
     let copied = false;
@@ -766,6 +863,9 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   const gridResizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(fitGrid) : null;
   gridResizeObserver?.observe(dom.viewport);
   window.addEventListener("resize", fitGrid);
+  // A fixed tooltip cannot follow an anchor that scrolls out from under it.
+  window.addEventListener("resize", () => tooltip.hide());
+  document.addEventListener("scroll", () => tooltip.hide(), true);
   window.addEventListener("beforeunload", persistNow);
 
   return {

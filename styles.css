@@ -5616,6 +5616,49 @@ body.hud-help-open .help-panel {
   outline-offset: 1px;
 }
 
+/* Replaces the native title tooltip, which is far too slow for sweeping a palette. */
+.editor-tooltip {
+  position: fixed;
+  z-index: 90;
+  max-width: 240px;
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 201, 92, 0.34);
+  border-radius: 7px;
+  color: #f4efff;
+  background: rgba(20, 17, 30, 0.97);
+  box-shadow: 0 10px 26px rgba(4, 3, 9, 0.5);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  line-height: 1.45;
+  text-align: center;
+  pointer-events: none;
+}
+
+.editor-tooltip[hidden] {
+  display: none;
+}
+
+.editor-tooltip::after {
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 7px;
+  height: 7px;
+  border-right: inherit;
+  border-bottom: inherit;
+  background: inherit;
+  transform: translateX(-50%) rotate(45deg);
+  content: "";
+}
+
+.editor-tooltip.is-below::after {
+  top: -4px;
+  bottom: auto;
+  border: 0;
+  border-top: 1px solid rgba(255, 201, 92, 0.34);
+  border-left: 1px solid rgba(255, 201, 92, 0.34);
+}
+
 /* The footprint a wide brush is about to commit to. */
 .designer-grid > .designer-cell.is-brush-preview {
   z-index: 4;

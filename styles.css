@@ -5443,16 +5443,23 @@ body.hud-help-open .help-panel {
 
 /* ---------- hotbar ---------- */
 
+/* An empty mirror column keeps the hotbar centred under the board rather than under the stage minus controls. */
 .editor-footer {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: end;
   gap: 12px;
 }
 
 .editor-hotbar-wrap {
   min-width: 0;
+  grid-column: 2;
+}
+
+.editor-footer__controls {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .editor-hotbar {
@@ -5533,6 +5540,7 @@ body.hud-help-open .help-panel {
 .editor-hint {
   margin: 7px 0 0;
   color: #7c748a;
+  text-align: center;
   font-size: 8px;
   letter-spacing: 0.04em;
   line-height: 1.6;
@@ -5871,6 +5879,11 @@ body.hud-help-open .help-panel {
 
   .editor-footer {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .editor-hotbar-wrap,
+  .editor-footer__controls {
+    grid-column: 1;
   }
 
   .editor-footer__controls {

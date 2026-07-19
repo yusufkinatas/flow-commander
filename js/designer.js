@@ -259,7 +259,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   let opened = false;
   let painting = false;
   let strokeCode = EMPTY_CODE;
-  let strokeAnchor = "";
+  let strokeAnchor = null;
   let saveTimer = null;
 
   function activeDesign() {
@@ -497,23 +497,51 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     return "painted";
   }
 
-  function paintStroke(cell) {
-    if (!cell?.classList.contains("designer-cell")) return;
-    const r = Number(cell.dataset.r);
-    const c = Number(cell.dataset.c);
-    const anchorKey = `${r},${c}`;
-    if (anchorKey === strokeAnchor) return;
-    strokeAnchor = anchorKey;
+  // Pointer samples are coarser than the grid, so a quick drag would otherwise skip whole tiles.
+  function* lineBetween(from, to) {
+    const spanRow = Math.abs(to.r - from.r);
+    const spanColumn = Math.abs(to.c - from.c);
+    const stepRow = from.r < to.r ? 1 : -1;
+    const stepColumn = from.c < to.c ? 1 : -1;
+    let error = spanColumn - spanRow;
+    let { r, c } = from;
+    for (;;) {
+      yield { r, c };
+      if (r === to.r && c === to.c) return;
+      const doubled = error * 2;
+      if (doubled > -spanRow) {
+        error -= spanRow;
+        c += stepColumn;
+      }
+      if (doubled < spanColumn) {
+        error += spanColumn;
+        r += stepRow;
+      }
+    }
+  }
 
+  function stamp(r, c, outcomes) {
     // Unique markers are single tiles no matter how wide the brush is.
     const size = UNIQUE_CODES.includes(strokeCode) ? 1 : brushSize;
     const offset = Math.floor((size - 1) / 2);
-    const outcomes = [];
     for (let dr = 0; dr < size; dr += 1) {
       for (let dc = 0; dc < size; dc += 1) {
         outcomes.push(paintAt(r - offset + dr, c - offset + dc, strokeCode));
       }
     }
+  }
+
+  function paintStroke(cell) {
+    if (!cell?.classList.contains("designer-cell")) return;
+    const r = Number(cell.dataset.r);
+    const c = Number(cell.dataset.c);
+    if (strokeAnchor && strokeAnchor.r === r && strokeAnchor.c === c) return;
+    const from = strokeAnchor ?? { r, c };
+    strokeAnchor = { r, c };
+
+    // Repainting the previous anchor is a no-op, so the span can stay inclusive at both ends.
+    const outcomes = [];
+    for (const point of lineBetween(from, { r, c })) stamp(point.r, point.c, outcomes);
 
     if (outcomes.includes("painted")) {
       setStatus("Draft changed. Analyze when the route is ready.");
@@ -681,7 +709,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     if (event.button !== 0 && event.button !== 2) return;
     painting = true;
     strokeCode = event.button === 2 ? EMPTY_CODE : selectedCode();
-    strokeAnchor = "";
+    strokeAnchor = null;
     paintStroke(event.target.closest(".designer-cell"));
     try { dom.grid.setPointerCapture?.(event.pointerId); } catch { /* Some synthetic or older pointers cannot be captured. */ }
     event.preventDefault();
@@ -694,7 +722,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   });
   const endPaint = () => {
     painting = false;
-    strokeAnchor = "";
+    strokeAnchor = null;
   };
   dom.grid.addEventListener("pointerup", endPaint);
   dom.grid.addEventListener("pointercancel", endPaint);

@@ -714,7 +714,7 @@ a:focus-visible {
   image-rendering: pixelated;
 }
 
-.cell[data-variation="1"] {
+.cell:where([data-variation="1"]) {
   background-image: url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
 }
 
@@ -2951,280 +2951,20 @@ dialog::backdrop {
   user-select: none;
 }
 
-.designer-cell,
-.designer-grid > button {
-  position: relative;
-  display: grid;
+/* Workshop cells are real board cells; only sizing and paint affordances differ. */
+.designer-grid > .designer-cell {
   width: var(--designer-cell-size, 46px);
   height: var(--designer-cell-size, 46px);
-  min-width: 0;
   padding: 0;
-  overflow: hidden;
-  place-items: center;
   border: 0;
-  border-right: 1px solid rgba(24, 47, 38, 0.26);
-  border-bottom: 1px solid rgba(24, 47, 38, 0.26);
+  border-right: 1px solid rgba(25, 48, 38, 0.19);
+  border-bottom: 1px solid rgba(25, 48, 38, 0.19);
   border-radius: 0;
-  color: #fff0ca;
-  background-color: #69a65f;
-  background-image: url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-  background-position: center;
-  background-size: cover;
-  box-shadow: none;
-  font-size: 13px;
+  font: inherit;
   cursor: crosshair;
-  image-rendering: pixelated;
 }
 
-.designer-cell--meadow {
-  background-color: #69a65f;
-  background-image:
-    linear-gradient(135deg, transparent 0 68%, rgba(39, 94, 61, 0.14) 69% 72%, transparent 73%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-}
-
-.designer-cell--wilds {
-  color: #a7c3af;
-  background-color: #263d35;
-  background-image:
-    linear-gradient(rgba(13, 28, 25, 0.45), rgba(16, 30, 28, 0.66)),
-    url("./assets/vendor/kenney-tiny-town/Tiles/tile_0000.png");
-  filter: saturate(0.72) brightness(0.82);
-}
-
-.designer-cell--start {
-  background-color: #5e8c58;
-  background-image:
-    radial-gradient(circle, transparent 0 34%, rgba(255, 230, 145, 0.78) 35% 40%, transparent 41%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
-}
-
-.designer-cell--goal {
-  background-color: #709d58;
-  background-image:
-    radial-gradient(circle at 50% 50%, rgba(255, 218, 108, 0.5), transparent 66%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-}
-
-.designer-cell--recruit {
-  background-color: #65a76a;
-  background-image:
-    radial-gradient(circle, rgba(115, 224, 164, 0.58), transparent 62%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
-}
-
-.designer-cell--goblin {
-  background-color: #657b4d;
-  background-image:
-    radial-gradient(circle, rgba(255, 118, 111, 0.4), transparent 64%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-}
-
-.designer-cell--mage {
-  background-color: #625f91;
-  background-image:
-    radial-gradient(circle, rgba(199, 186, 255, 0.52), transparent 61%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
-}
-
-.designer-cell--dragon {
-  background-color: #78525b;
-  background-image:
-    radial-gradient(circle, rgba(255, 118, 111, 0.52), transparent 65%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-}
-
-.designer-cell--builder {
-  background-color: #81744b;
-  background-image:
-    radial-gradient(circle, rgba(255, 201, 92, 0.46), transparent 62%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
-}
-
-.designer-cell--river {
-  color: #e2f7ff;
-  background-color: #579bc7;
-  background-image:
-    repeating-linear-gradient(0deg, transparent 0 8px, rgba(220, 250, 255, 0.42) 8px 10px, transparent 10px 16px),
-    linear-gradient(90deg, rgba(40, 102, 134, 0.62) 0 12%, transparent 12% 88%, rgba(40, 102, 134, 0.62) 88%);
-}
-
-.designer-cell--healer {
-  background-color: #9a6c73;
-  background-image:
-    radial-gradient(circle, rgba(255, 218, 215, 0.58), transparent 61%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
-}
-
-.designer-cell--stride {
-  color: #effffc;
-  background-color: #397e78;
-  background-image:
-    linear-gradient(90deg, rgba(226, 255, 251, 0.52) 0 8%, transparent 8% 92%, rgba(226, 255, 251, 0.52) 92%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
-}
-
-.designer-cell--pivot {
-  color: #f5f1ff;
-  background-color: #5d5586;
-  background-image:
-    radial-gradient(circle, transparent 0 35%, rgba(238, 234, 255, 0.52) 37% 43%, transparent 45%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
-}
-
-.designer-cell--aegis {
-  color: #fff5c9;
-  background-color: #8e713f;
-  background-image:
-    radial-gradient(circle, rgba(255, 232, 150, 0.56), transparent 62%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
-}
-
-.designer-cell--stride .designer-cell__glyph,
-.designer-cell--pivot .designer-cell__glyph {
-  width: 29px;
-  height: 29px;
-  border: 2px double currentColor;
-  border-radius: 5px;
-  background: rgba(26, 49, 57, 0.42);
-  font-family: ui-monospace, "SFMono-Regular", monospace;
-  font-size: 12px;
-}
-
-.designer-cell--pivot .designer-cell__glyph { border-style: dashed; }
-
-.designer-cell--aegis .designer-cell__glyph {
-  width: 25px;
-  height: 28px;
-  border: 2px double #fff0a8;
-  border-radius: 44% 44% 56% 56%;
-  background: #287f78;
-}
-
-.designer-cell--formation {
-  color: #ecfbff;
-  background-color: #4b7895;
-  background-image:
-    repeating-linear-gradient(90deg, rgba(107, 187, 221, 0.9) 0 6px, rgba(42, 82, 111, 0.92) 6px 9px),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-}
-
-.designer-cell--switch {
-  color: #3d2a1c;
-  background-color: #d6a64e;
-  background-image:
-    radial-gradient(circle, #ffd979 0 36%, #9f6538 38% 45%, transparent 47%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-}
-
-.designer-cell--gate {
-  color: #fff0c9;
-  background-color: #81583f;
-  background-image:
-    repeating-linear-gradient(90deg, rgba(221, 145, 75, 0.92) 0 6px, rgba(89, 55, 46, 0.9) 6px 9px),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-}
-
-.designer-cell--switch[data-code="q"] {
-  color: #f4f0ff;
-  background-color: #7167a5;
-  background-image:
-    radial-gradient(circle, #b9adff 0 36%, #554c8b 38% 45%, transparent 47%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-}
-
-.designer-cell--gate[data-code="Q"] {
-  background-color: #554d82;
-  background-image:
-    repeating-linear-gradient(90deg, rgba(151, 138, 218, 0.95) 0 6px, rgba(71, 63, 112, 0.95) 6px 9px),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-}
-
-.designer-cell--wilds img,
-.designer-cell--goal img,
-.designer-cell--start img,
-.designer-cell--recruit img,
-.designer-cell--goblin img,
-.designer-cell--mage img,
-.designer-cell--dragon img,
-.designer-cell--builder img,
-.designer-cell--healer img {
-  position: relative;
-  z-index: 2;
-  width: 78%;
-  height: 78%;
-  filter: drop-shadow(0 3px 0 rgba(33, 24, 37, 0.42));
-}
-
-.designer-cell--wilds img { width: 86%; height: 86%; opacity: 0.78; }
-.designer-cell--dragon img { width: 88%; height: 88%; }
-
-.designer-cell__glyph {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  min-width: 22px;
-  min-height: 22px;
-  place-items: center;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 16px;
-  font-weight: 900;
-  line-height: 1;
-  text-shadow: 0 2px rgba(28, 20, 32, 0.42);
-  pointer-events: none;
-}
-
-.designer-cell--meadow .designer-cell__glyph {
-  color: rgba(232, 255, 218, 0.38);
-  font-size: 19px;
-  text-shadow: none;
-}
-
-.designer-cell__badge {
-  position: absolute;
-  z-index: 5;
-  top: 2px;
-  right: 2px;
-  display: grid;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 3px;
-  place-items: center;
-  border: 1px solid #ffe6dd;
-  border-radius: 4px;
-  color: #fff7ef;
-  background: #a5434e;
-  box-shadow: 0 2px 0 rgba(64, 31, 40, 0.64);
-  font-size: 6px;
-  font-weight: 900;
-  line-height: 1;
-  pointer-events: none;
-}
-
-.designer-cell__badge.is-pickup {
-  color: #173a2e;
-  border-color: #d8ffe5;
-  background: var(--mint);
-  box-shadow: 0 2px 0 rgba(36, 101, 70, 0.7);
-}
-
-.designer-palette__button .designer-cell__badge {
-  top: 1px;
-  right: 1px;
-  min-width: 13px;
-  height: 13px;
-  padding: 0 2px;
-  font-size: 5px;
-}
-
-.designer-cell:hover,
-.designer-grid > button:hover {
-  z-index: 2;
-  box-shadow: inset 0 0 0 3px rgba(255, 241, 189, 0.85);
-}
-
-.designer-cell:focus-visible,
-.designer-grid > button:focus-visible {
+.designer-grid > .designer-cell:focus-visible {
   z-index: 3;
   outline: 3px solid var(--gold);
   outline-offset: -3px;
@@ -5428,19 +5168,6 @@ body.hud-help-open .help-panel {
   user-select: none;
 }
 
-.editor-frame--dense .designer-cell__glyph {
-  font-size: 8px;
-}
-
-.editor-frame--dense .designer-cell__badge {
-  width: 6px;
-  height: 6px;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 0;
-  text-indent: -99px;
-}
-
 /* ---------- hotbar ---------- */
 
 /* An empty mirror column keeps the hotbar centred under the board rather than under the stage minus controls. */
@@ -5806,54 +5533,6 @@ body.hud-help-open .help-panel {
   margin-bottom: 8px;
 }
 
-/* ---------- tiles introduced with the expanded library ---------- */
-
-.designer-cell--mud {
-  color: #e8dcc9;
-  background-color: #5c4a35;
-  background-image:
-    repeating-linear-gradient(135deg, rgba(38, 28, 19, 0.5) 0 4px, transparent 4px 9px),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-  filter: saturate(0.75) brightness(0.85);
-}
-
-.designer-cell--supply {
-  color: #fff3d2;
-  background-color: #7c6a3c;
-  background-image:
-    radial-gradient(circle, rgba(255, 220, 140, 0.5), transparent 62%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
-}
-
-.designer-cell--beacon {
-  color: #fff6d6;
-  background-color: #8a7a4a;
-  background-image:
-    radial-gradient(circle, transparent 0 26%, rgba(255, 228, 150, 0.62) 28% 36%, transparent 38%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
-}
-
-.designer-cell--hungry {
-  color: #ffe3e0;
-  background-color: #6d4048;
-  background-image:
-    radial-gradient(circle, rgba(255, 140, 132, 0.48), transparent 63%),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-}
-
-.designer-cell--current {
-  color: #dff4ff;
-  background-color: #3f6f86;
-  background-image:
-    repeating-linear-gradient(90deg, rgba(210, 240, 255, 0.2) 0 5px, transparent 5px 12px),
-    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
-}
-
-.designer-cell--current .designer-cell__glyph {
-  font-size: 15px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-}
-
 /* ---------- narrow screens ---------- */
 
 @media (max-width: 1080px) {
@@ -5895,4 +5574,52 @@ body.hud-help-open .help-panel {
   border-color: color-mix(in srgb, var(--gold), transparent 35%);
   color: var(--gold);
   background: rgba(255, 201, 92, 0.12);
+}
+
+/* ---------- workshop tiles are board tiles ---------- */
+
+/* Brush chips are real cells shrunk to thumbnail size; only the caption is dropped,
+   because a 40px chip cannot legibly render "RIGHT-ANGLE TURN". */
+.tile-chip {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 5px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tile-chip .tile-label {
+  display: none;
+}
+
+.editor-library__tiles .tile-chip {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+}
+
+.editor-library__tiles .tile-chip:hover {
+  z-index: 1;
+  transform: translateY(-2px);
+  border-color: rgba(255, 201, 92, 0.65);
+}
+
+.editor-library__tiles .tile-chip.is-selected {
+  border-color: #fff1bd;
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+/* The footprint a wide brush is about to commit to. */
+.designer-grid > .designer-cell.is-brush-preview {
+  z-index: 4;
+  outline: 2px solid rgba(255, 241, 189, 0.92);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 99px rgba(255, 201, 92, 0.22);
 }

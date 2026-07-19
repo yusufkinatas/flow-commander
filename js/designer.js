@@ -1,4 +1,5 @@
 import { TILE_DEFS, analyzeLevel, parseLevel } from "./engine.js";
+import { renderTile } from "./tiles.js";
 
 const STORAGE_KEY = "flow-commander-level-workshop-v1";
 const MIN_WIDTH = 4;
@@ -60,21 +61,6 @@ const BRUSH_BY_CODE = new Map(BRUSHES.map((brush) => [brush.code, brush]));
 const BRUSH_GROUPS = [...new Set(BRUSHES.map((brush) => brush.group))];
 const DEFAULT_HOTBAR = Object.freeze(["#", ".", "r", "R", "g", "o", "m", "b", "~", "G"]);
 const DIFFICULTY_VALUES = Object.freeze({ Gentle: 2, Tricky: 4, Clever: 6, Hard: 8, Master: 10 });
-
-const SPRITES = Object.freeze({
-  "#": "./assets/vendor/kenney-tiny-town/Tiles/tile_0007.png",
-  S: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0100.png",
-  G: "./assets/vendor/kenney-tiny-town/Tiles/tile_0095.png",
-  r: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0098.png",
-  R: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0098.png",
-  g: "./assets/vendor/tiny-creatures/tiny-creatures/Tiles/tile_0011.png",
-  o: "./assets/vendor/tiny-creatures/tiny-creatures/Tiles/tile_0012.png",
-  t: "./assets/vendor/tiny-creatures/tiny-creatures/Tiles/tile_0015.png",
-  m: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0084.png",
-  d: "./assets/vendor/tiny-creatures/tiny-creatures/Tiles/tile_0034.png",
-  b: "./assets/vendor/kenney-tiny-farm/Tiles/tile_0108.png",
-  f: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0087.png",
-});
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? Math.round(value) : min));
@@ -175,39 +161,11 @@ function exportableLevel(design) {
   };
 }
 
-function badgeFor(code) {
-  if (code === "R") return "+2";
-  if (["r", "a"].includes(code)) return "+1";
-  if (["g", "o", "t"].includes(code)) return String(TILE_DEFS[code].cost);
-  if (["h", "H"].includes(code)) return String(TILE_DEFS[code].need);
-  return null;
-}
-
-function appendBrushVisual(node, code, variant = "cell") {
-  node.replaceChildren();
-  const base = variant === "cell" ? "designer-cell" : "designer-palette__button";
-  node.className = `${base} designer-cell--${TILE_DEFS[code]?.type ?? "meadow"}`;
-  node.dataset.code = code;
-  const sprite = SPRITES[code];
-  if (sprite) {
-    const image = document.createElement("img");
-    image.src = sprite;
-    image.alt = "";
-    image.draggable = false;
-    node.append(image);
-  } else {
-    const glyph = document.createElement("span");
-    glyph.className = "designer-cell__glyph";
-    glyph.textContent = BRUSH_BY_CODE.get(code)?.glyph ?? code;
-    node.append(glyph);
-  }
-  const badge = badgeFor(code);
-  if (badge) {
-    const marker = document.createElement("span");
-    marker.className = `designer-cell__badge${/[rRa]/.test(code) ? " is-pickup" : ""}`;
-    marker.textContent = badge;
-    node.append(marker);
-  }
+// Every surface paints through the shared board renderer, so a brush chip, a
+// workshop cell, and the played tile are the same pixels.
+function appendBrushVisual(node, code, variant = "cell", r = 0, c = 0) {
+  renderTile(node, code, r, c, { showParty: true });
+  node.classList.add(variant === "chip" ? "tile-chip" : "designer-cell");
 }
 
 function copyFallback(textarea) {
@@ -329,7 +287,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
       wrap.setAttribute("aria-pressed", String(slot === workspace.activeSlot));
 
       const tile = document.createElement("span");
-      appendBrushVisual(tile, code, "palette");
+      appendBrushVisual(tile, code, "chip");
       const key = document.createElement("kbd");
       key.className = "editor-hotbar__key";
       key.textContent = String((slot + 1) % 10);
@@ -354,7 +312,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
         button.type = "button";
         button.title = brush.label;
         button.setAttribute("aria-label", `${brush.label}. Load into slot ${workspace.activeSlot + 1}.`);
-        appendBrushVisual(button, brush.code, "palette");
+        appendBrushVisual(button, brush.code, "chip");
         button.classList.toggle("is-selected", brush.code === selectedCode());
         button.addEventListener("click", () => assignToActiveSlot(brush.code));
         tiles.append(button);
@@ -396,6 +354,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   function setBrushSize(size) {
     brushSize = BRUSH_SIZES.includes(size) ? size : 1;
     renderBrushSizes();
+    previewBrush(dom.grid.querySelector(".is-brush-preview"));
   }
 
   function cycleBrushSize(step) {
@@ -415,7 +374,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     const cell = dom.grid.querySelector(`[data-r="${r}"][data-c="${c}"]`);
     if (!cell) return;
     const code = activeDesign().map[r][c];
-    appendBrushVisual(cell, code);
+    appendBrushVisual(cell, code, "cell", r, c);
     cell.dataset.r = String(r);
     cell.dataset.c = String(c);
     cell.setAttribute("aria-label", `${TILE_DEFS[code].label}, row ${r + 1}, column ${c + 1}`);
@@ -431,7 +390,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
         cell.type = "button";
         cell.dataset.r = String(r);
         cell.dataset.c = String(c);
-        appendBrushVisual(cell, design.map[r][c]);
+        appendBrushVisual(cell, design.map[r][c], "cell", r, c);
         cell.dataset.r = String(r);
         cell.dataset.c = String(c);
         cell.setAttribute("role", "gridcell");
@@ -527,6 +486,24 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     for (let dr = 0; dr < size; dr += 1) {
       for (let dc = 0; dc < size; dc += 1) {
         outcomes.push(paintAt(r - offset + dr, c - offset + dc, strokeCode));
+      }
+    }
+  }
+
+  // A wide brush has to show its footprint before it commits, not after.
+  function previewBrush(cell) {
+    for (const marked of dom.grid.querySelectorAll(".is-brush-preview")) {
+      marked.classList.remove("is-brush-preview");
+    }
+    if (!cell?.classList.contains("designer-cell")) return;
+    const r = Number(cell.dataset.r);
+    const c = Number(cell.dataset.c);
+    const size = UNIQUE_CODES.includes(selectedCode()) ? 1 : brushSize;
+    const offset = Math.floor((size - 1) / 2);
+    for (let dr = 0; dr < size; dr += 1) {
+      for (let dc = 0; dc < size; dc += 1) {
+        const target = dom.grid.querySelector(`[data-r="${r - offset + dr}"][data-c="${c - offset + dc}"]`);
+        target?.classList.add("is-brush-preview");
       }
     }
   }
@@ -715,11 +692,14 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     event.preventDefault();
   });
   dom.grid.addEventListener("pointermove", (event) => {
-    if (!painting) return;
     const element = document.elementFromPoint(event.clientX, event.clientY);
-    paintStroke(element?.closest?.(".designer-cell"));
+    const cell = element?.closest?.(".designer-cell");
+    previewBrush(cell);
+    if (!painting) return;
+    paintStroke(cell);
     event.preventDefault();
   });
+  dom.grid.addEventListener("pointerleave", () => previewBrush(null));
   const endPaint = () => {
     painting = false;
     strokeAnchor = null;

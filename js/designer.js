@@ -676,7 +676,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     workspace.activeId = copy.id;
     renderActiveDesign();
     persistNow();
-    setStatus(`Copied to “${copy.name}”. The original is untouched.`, "success");
+    setStatus(`Duplicated to “${copy.name}”. The original is untouched.`, "success");
   }
 
   function deleteActiveDesign() {
@@ -688,6 +688,17 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     workspace.activeId = workspace.designs[0].id;
     renderActiveDesign();
     persistNow();
+  }
+
+  async function copyLevelData() {
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(dom.output.value);
+      copied = true;
+    } catch {
+      copied = copyFallback(dom.output);
+    }
+    setStatus(copied ? "Level data copied. Paste it back into chat whenever it is ready." : "Select the export text and copy it manually.", copied ? "success" : "error");
   }
 
   function playtestActiveDesign() {
@@ -729,8 +740,9 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     [dom.analyze, "Analyze this map for a winning route · A"],
     [dom.playtest, "Play the map yourself · P"],
     [dom.create, "Start a blank map · N"],
-    [dom.duplicate, "Copy this map · C"],
-    [dom.remove, "Delete this map · D or Backspace"],
+    [dom.duplicate, "Duplicate this map · D"],
+    [dom.remove, "Delete this map · Backspace"],
+    [dom.copy, "Copy this level's data to the clipboard · C"],
     [dom.libraryToggle, "Browse every tile · E"],
   ].forEach(([button, text], index) => button && bindTooltip(button, text, `action-${index}`));
 
@@ -830,16 +842,18 @@ export function createLevelDesigner({ onPlaytest } = {}) {
       event.preventDefault();
       return;
     }
-    // Backspace is the reflex for "remove this", so it opens the same confirm as the DELETE button.
-    const action = event.key === "Backspace" ? "d" : event.key.toLowerCase();
+    // Deleting a map is the one destructive action here, so it answers only to the
+    // reflex key for "remove this" rather than to a letter sitting next to the others.
     const shortcuts = {
+      Backspace: deleteActiveDesign,
       e: toggleLibrary,
       a: analyzeActiveDesign,
       p: playtestActiveDesign,
       n: createNewDesign,
-      c: duplicateActiveDesign,
-      d: deleteActiveDesign,
+      d: duplicateActiveDesign,
+      c: copyLevelData,
     };
+    const action = event.key === "Backspace" ? "Backspace" : event.key.toLowerCase();
     if (Object.hasOwn(shortcuts, action)) {
       shortcuts[action]();
       event.preventDefault();
@@ -848,17 +862,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
 
   dom.analyze.addEventListener("click", analyzeActiveDesign);
   dom.playtest.addEventListener("click", playtestActiveDesign);
-  dom.copy.addEventListener("click", async () => {
-    const text = dom.output.value;
-    let copied = false;
-    try {
-      await navigator.clipboard.writeText(text);
-      copied = true;
-    } catch {
-      copied = copyFallback(dom.output);
-    }
-    setStatus(copied ? "Level data copied. Paste it back into chat whenever it is ready." : "Select the export text and copy it manually.", copied ? "success" : "error");
-  });
+  dom.copy.addEventListener("click", copyLevelData);
 
   const gridResizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(fitGrid) : null;
   gridResizeObserver?.observe(dom.viewport);

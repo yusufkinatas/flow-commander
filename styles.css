@@ -5353,3 +5353,533 @@ body.hud-help-open .help-panel {
     transform: translateX(0);
   }
 }
+
+/* ==========================================================================
+   LEVEL WORKSHOP — a full page that borrows the gameplay anatomy:
+   big canvas, right-hand inspector where Company sits, hotbar where the
+   mission tools sit. Nothing about it should read as a dialog.
+   ========================================================================== */
+
+:root {
+  --editor-inspector-width: clamp(250px, 20vw, 300px);
+  --editor-hotbar-slot: clamp(44px, 4.4vw, 58px);
+}
+
+.game-shell[hidden],
+.editor-shell[hidden] {
+  display: none !important;
+}
+
+.editor-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--editor-inspector-width);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 12px;
+  height: 100dvh;
+  padding: calc(var(--hud-topbar-height) + 12px) 12px 12px;
+  overflow: hidden;
+}
+
+/* ---------- canvas column ---------- */
+
+.editor-stage {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(169, 151, 255, 0.07), transparent 55%),
+    rgba(17, 15, 25, 0.28);
+}
+
+.editor-viewport {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  place-items: center;
+  padding: 6px;
+}
+
+.editor-frame {
+  position: relative;
+  overflow: hidden;
+  border: 3px solid rgba(255, 201, 92, 0.32);
+  border-radius: 10px;
+  background: rgba(13, 12, 20, 0.5);
+  box-shadow: 0 22px 48px rgba(4, 3, 9, 0.42), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.editor-frame .designer-grid {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  grid-template-columns: repeat(var(--design-cols, 9), var(--designer-cell-size, 46px));
+  grid-auto-rows: var(--designer-cell-size, 46px);
+  align-content: start;
+  justify-content: start;
+  touch-action: none;
+  user-select: none;
+}
+
+.editor-frame--dense .designer-cell__glyph {
+  font-size: 8px;
+}
+
+.editor-frame--dense .designer-cell__badge {
+  width: 6px;
+  height: 6px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0;
+  text-indent: -99px;
+}
+
+/* ---------- hotbar ---------- */
+
+.editor-footer {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.editor-hotbar-wrap {
+  min-width: 0;
+}
+
+.editor-hotbar {
+  display: flex;
+  gap: 5px;
+  min-width: 0;
+  padding: 6px;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(13, 12, 20, 0.72);
+  box-shadow: 0 10px 26px rgba(4, 3, 9, 0.34), inset 0 1px rgba(255, 255, 255, 0.05);
+  scrollbar-width: none;
+}
+
+.editor-hotbar::-webkit-scrollbar {
+  display: none;
+}
+
+.editor-hotbar__slot {
+  position: relative;
+  display: grid;
+  width: var(--editor-hotbar-slot);
+  height: var(--editor-hotbar-slot);
+  flex: 0 0 auto;
+  padding: 3px;
+  place-items: stretch;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(34, 29, 47, 0.9);
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.editor-hotbar__slot:hover {
+  border-color: rgba(255, 201, 92, 0.5);
+}
+
+.editor-hotbar__slot[aria-pressed="true"] {
+  transform: translateY(-4px);
+  border-color: #fff1bd;
+  box-shadow: 0 0 0 2px var(--gold), 0 0 20px rgba(255, 201, 92, 0.34);
+}
+
+.editor-hotbar__slot .designer-palette__button {
+  width: 100%;
+  height: 100%;
+  transform: none;
+  border-radius: 5px;
+  outline: 0;
+  box-shadow: inset 0 -3px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+.editor-hotbar__key {
+  position: absolute;
+  top: -7px;
+  left: -5px;
+  display: grid;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  color: #cfc6dc;
+  background: #221d2f;
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 8px;
+  line-height: 1;
+}
+
+.editor-hotbar__slot[aria-pressed="true"] .editor-hotbar__key {
+  border-color: rgba(255, 201, 92, 0.6);
+  color: var(--gold);
+}
+
+.editor-hint {
+  margin: 7px 0 0;
+  color: #7c748a;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+}
+
+.editor-hint strong {
+  color: #b9afc8;
+  font-weight: 600;
+}
+
+.editor-hint kbd,
+.tool-button kbd {
+  display: inline-grid;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
+  color: #d5ccdf;
+  background: rgba(255, 255, 255, 0.05);
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 8px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* ---------- brush size + library toggle ---------- */
+
+.editor-footer__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-brush-sizes {
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9px;
+  background: rgba(13, 12, 20, 0.72);
+}
+
+.editor-size {
+  min-width: 40px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #a49bb3;
+  background: transparent;
+  font-family: inherit;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.editor-size:hover {
+  color: var(--cream);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.editor-size[aria-pressed="true"] {
+  border-color: rgba(255, 201, 92, 0.55);
+  color: #1c1626;
+  background: var(--gold);
+  font-weight: 700;
+}
+
+.editor-footer__controls .tool-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+/* ---------- tile library tray ---------- */
+
+.editor-tray {
+  display: grid;
+  max-height: min(36dvh, 320px);
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(255, 201, 92, 0.24);
+  border-radius: 12px;
+  background: rgba(20, 17, 30, 0.94);
+  box-shadow: 0 -12px 34px rgba(4, 3, 9, 0.42);
+  animation: dialogIn 160ms ease-out;
+}
+
+.editor-tray[hidden] {
+  display: none;
+}
+
+.editor-tray__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.editor-tray__head p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.editor-tray__close {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.editor-tray__close:hover {
+  color: var(--cream);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.editor-library {
+  display: flex;
+  min-height: 0;
+  flex-wrap: wrap;
+  gap: 14px 22px;
+  overflow-y: auto;
+  scrollbar-color: #685d74 #211c2c;
+  scrollbar-width: thin;
+}
+
+.editor-library__group h4 {
+  margin: 0 0 6px;
+  color: #8d8499;
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.editor-library__tiles {
+  display: flex;
+  max-width: 300px;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+/* ---------- inspector column ---------- */
+
+.editor-inspector {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(44, 38, 59, 0.94), rgba(25, 22, 36, 0.95));
+  box-shadow: 0 18px 42px rgba(4, 3, 9, 0.35);
+  backdrop-filter: blur(16px);
+  scrollbar-color: #685d74 #211c2c;
+  scrollbar-width: thin;
+}
+
+.editor-inspector__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.editor-inspector__head h2 {
+  margin: 4px 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.editor-inspector .dialog-close {
+  position: static;
+  flex: 0 0 auto;
+}
+
+.editor-inspector .designer-head__save {
+  margin-left: 0;
+}
+
+.editor-check {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  background: rgba(13, 12, 20, 0.4);
+}
+
+.editor-check .designer-primary-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+}
+
+.editor-check .primary-button,
+.editor-check .secondary-button {
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 10px;
+}
+
+.editor-inspector .designer-section {
+  margin: 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.editor-inspector .designer-section__heading {
+  margin-bottom: 9px;
+}
+
+.designer-section--fold > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.designer-section--fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.designer-section--fold > summary .designer-section__heading {
+  margin-bottom: 0;
+}
+
+.designer-section--fold > summary .designer-section__heading::after {
+  margin-left: auto;
+  color: var(--muted);
+  content: "▾";
+  font-size: 9px;
+}
+
+.designer-section--fold[open] > summary .designer-section__heading {
+  margin-bottom: 9px;
+}
+
+.designer-section--fold[open] > summary .designer-section__heading::after {
+  content: "▴";
+}
+
+.designer-copy-button {
+  width: 100%;
+  min-height: 38px;
+  margin-bottom: 8px;
+}
+
+/* ---------- tiles introduced with the expanded library ---------- */
+
+.designer-cell--mud {
+  color: #e8dcc9;
+  background-color: #5c4a35;
+  background-image:
+    repeating-linear-gradient(135deg, rgba(38, 28, 19, 0.5) 0 4px, transparent 4px 9px),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
+  filter: saturate(0.75) brightness(0.85);
+}
+
+.designer-cell--supply {
+  color: #fff3d2;
+  background-color: #7c6a3c;
+  background-image:
+    radial-gradient(circle, rgba(255, 220, 140, 0.5), transparent 62%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
+}
+
+.designer-cell--beacon {
+  color: #fff6d6;
+  background-color: #8a7a4a;
+  background-image:
+    radial-gradient(circle, transparent 0 26%, rgba(255, 228, 150, 0.62) 28% 36%, transparent 38%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
+}
+
+.designer-cell--hungry {
+  color: #ffe3e0;
+  background-color: #6d4048;
+  background-image:
+    radial-gradient(circle, rgba(255, 140, 132, 0.48), transparent 63%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
+}
+
+.designer-cell--current {
+  color: #dff4ff;
+  background-color: #3f6f86;
+  background-image:
+    repeating-linear-gradient(90deg, rgba(210, 240, 255, 0.2) 0 5px, transparent 5px 12px),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
+}
+
+.designer-cell--current .designer-cell__glyph {
+  font-size: 15px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* ---------- narrow screens ---------- */
+
+@media (max-width: 1080px) {
+  :root {
+    --editor-inspector-width: 232px;
+  }
+
+  .editor-hint {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .editor-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    overflow-y: auto;
+  }
+
+  .editor-inspector {
+    max-height: 46dvh;
+  }
+
+  .editor-footer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .editor-footer__controls {
+    justify-content: space-between;
+  }
+}
+
+#designerButton[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--gold), transparent 35%);
+  color: var(--gold);
+  background: rgba(255, 201, 92, 0.12);
+}

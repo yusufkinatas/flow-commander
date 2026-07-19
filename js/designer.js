@@ -6,34 +6,59 @@ const MAX_WIDTH = 24;
 const MIN_HEIGHT = 4;
 const MAX_HEIGHT = 16;
 
+const EMPTY_CODE = ".";
+const HOTBAR_SLOTS = 10;
+const BRUSH_SIZES = Object.freeze([1, 2, 3]);
+const MAX_CELL_SIZE = 96;
+const MIN_CELL_SIZE = 14;
+// One commander and one banner per map, so these never paint as a block and never erase by accident.
+const UNIQUE_CODES = Object.freeze(["S", "G"]);
+
 const BRUSHES = Object.freeze([
-  { code: ".", label: "Meadow", glyph: "·" },
-  { code: "#", label: "Thick wilds", glyph: "▦" },
-  { code: "S", label: "Commander start", glyph: "◆" },
-  { code: "G", label: "Royal banner", glyph: "⚑" },
-  { code: "r", label: "One soldier", glyph: "+1" },
-  { code: "R", label: "Two soldiers", glyph: "+2" },
-  { code: "1", label: "Formation checkpoint · exactly 1 ready soldier", glyph: "=1" },
-  { code: "2", label: "Formation checkpoint · exactly 2 ready soldiers", glyph: "=2" },
-  { code: "3", label: "Formation checkpoint · exactly 3 ready soldiers", glyph: "=3" },
-  { code: "g", label: "Goblin · costs 1 soldier", glyph: "1" },
-  { code: "o", label: "Goblin duo · costs 2 soldiers", glyph: "2" },
-  { code: "t", label: "Goblin troop · costs 3 soldiers", glyph: "3" },
-  { code: "m", label: "Mage recruit", glyph: "✦" },
-  { code: "d", label: "Dragon · needs a mage", glyph: "D" },
-  { code: "b", label: "Builder recruit", glyph: "B" },
-  { code: "~", label: "River · needs a builder", glyph: "≈" },
-  { code: "f", label: "Field healer", glyph: "✚" },
-  { code: "i", label: "Stride Marker · continue straight through", glyph: "↕↔" },
-  { code: "p", label: "Pivot Marker · make a right-angle turn", glyph: "↱↰" },
-  { code: "a", label: "Aegis Bearer · protects one battle", glyph: "◆" },
-  { code: "y", label: "Sun switch", glyph: "☀" },
-  { code: "Y", label: "Sun gate", glyph: "☀" },
-  { code: "q", label: "Moon switch", glyph: "☾" },
-  { code: "Q", label: "Moon gate", glyph: "☾" },
+  { code: ".", group: "Terrain", label: "Meadow", glyph: "·" },
+  { code: "#", group: "Terrain", label: "Thick wilds", glyph: "▦" },
+  { code: "~", group: "Terrain", label: "River · needs a builder", glyph: "≈" },
+  { code: "w", group: "Terrain", label: "Deep mud · costs 2 movement", glyph: "▒" },
+  { code: "c", group: "Terrain", label: "Supply cache · grants 2 movement", glyph: "▣" },
+
+  { code: "S", group: "Markers", label: "Commander start", glyph: "◆" },
+  { code: "G", group: "Markers", label: "Royal banner", glyph: "⚑" },
+  { code: "*", group: "Markers", label: "Rally beacon", glyph: "◎" },
+
+  { code: "r", group: "Company", label: "One soldier", glyph: "+1" },
+  { code: "R", group: "Company", label: "Two soldiers", glyph: "+2" },
+  { code: "m", group: "Company", label: "Mage recruit", glyph: "✦" },
+  { code: "b", group: "Company", label: "Builder recruit", glyph: "B" },
+  { code: "f", group: "Company", label: "Field healer", glyph: "✚" },
+  { code: "a", group: "Company", label: "Aegis Bearer · protects one battle", glyph: "◆" },
+
+  { code: "g", group: "Foes", label: "Goblin · costs 1 soldier", glyph: "1" },
+  { code: "o", group: "Foes", label: "Orc · costs 2 soldiers", glyph: "2" },
+  { code: "t", group: "Foes", label: "Ogre · costs 3 soldiers", glyph: "3" },
+  { code: "d", group: "Foes", label: "Dragon · needs a mage", glyph: "D" },
+  { code: "h", group: "Foes", label: "Hungry mossling · fed from 1 adjacent route tile", glyph: "⌾" },
+  { code: "H", group: "Foes", label: "Hungry emberling · fed from 2 adjacent route tiles", glyph: "⌾" },
+
+  { code: "1", group: "Formation", label: "Formation checkpoint · exactly 1 ready soldier", glyph: "=1" },
+  { code: "2", group: "Formation", label: "Formation checkpoint · exactly 2 ready soldiers", glyph: "=2" },
+  { code: "3", group: "Formation", label: "Formation checkpoint · exactly 3 ready soldiers", glyph: "=3" },
+
+  { code: "i", group: "Route", label: "Stride Marker · continue straight through", glyph: "↕↔" },
+  { code: "p", group: "Route", label: "Pivot Marker · make a right-angle turn", glyph: "↱↰" },
+  { code: ">", group: "Route", label: "Eastward marching arrow", glyph: "→" },
+  { code: "<", group: "Route", label: "Westward marching arrow", glyph: "←" },
+  { code: "^", group: "Route", label: "Northward marching arrow", glyph: "↑" },
+  { code: "v", group: "Route", label: "Southward marching arrow", glyph: "↓" },
+
+  { code: "y", group: "Seals", label: "Sun switch", glyph: "☀" },
+  { code: "Y", group: "Seals", label: "Sun gate", glyph: "☀" },
+  { code: "q", group: "Seals", label: "Moon switch", glyph: "☾" },
+  { code: "Q", group: "Seals", label: "Moon gate", glyph: "☾" },
 ]);
 
 const BRUSH_BY_CODE = new Map(BRUSHES.map((brush) => [brush.code, brush]));
+const BRUSH_GROUPS = [...new Set(BRUSHES.map((brush) => brush.group))];
+const DEFAULT_HOTBAR = Object.freeze(["#", ".", "r", "R", "g", "o", "m", "b", "~", "G"]);
 const DIFFICULTY_VALUES = Object.freeze({ Gentle: 2, Tricky: 4, Clever: 6, Hard: 8, Master: 10 });
 
 const SPRITES = Object.freeze({
@@ -113,6 +138,13 @@ function normalizeDesign(candidate) {
   };
 }
 
+function normalizeHotbar(candidate) {
+  const source = Array.isArray(candidate) ? candidate : [];
+  return Array.from({ length: HOTBAR_SLOTS }, (_, slot) => (
+    BRUSH_BY_CODE.has(source[slot]) ? source[slot] : DEFAULT_HOTBAR[slot]
+  ));
+}
+
 function readWorkspace() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
@@ -121,11 +153,13 @@ function readWorkspace() {
       return {
         designs,
         activeId: designs.some((design) => design.id === parsed.activeId) ? parsed.activeId : designs[0].id,
+        hotbar: normalizeHotbar(parsed?.hotbar),
+        activeSlot: clamp(Number(parsed?.activeSlot), 0, HOTBAR_SLOTS - 1),
       };
     }
   } catch { /* A clean workshop is safer than failing on corrupt browser storage. */ }
   const starter = createDesign("My First March");
-  return { designs: [starter], activeId: starter.id };
+  return { designs: [starter], activeId: starter.id, hotbar: normalizeHotbar(null), activeSlot: 0 };
 }
 
 function exportableLevel(design) {
@@ -141,9 +175,18 @@ function exportableLevel(design) {
   };
 }
 
-function appendBrushVisual(node, code, palette = false) {
+function badgeFor(code) {
+  if (code === "R") return "+2";
+  if (["r", "a"].includes(code)) return "+1";
+  if (["g", "o", "t"].includes(code)) return String(TILE_DEFS[code].cost);
+  if (["h", "H"].includes(code)) return String(TILE_DEFS[code].need);
+  return null;
+}
+
+function appendBrushVisual(node, code, variant = "cell") {
   node.replaceChildren();
-  node.className = `${palette ? "designer-palette__button" : "designer-cell"} designer-cell--${TILE_DEFS[code]?.type ?? "meadow"}`;
+  const base = variant === "cell" ? "designer-cell" : "designer-palette__button";
+  node.className = `${base} designer-cell--${TILE_DEFS[code]?.type ?? "meadow"}`;
   node.dataset.code = code;
   const sprite = SPRITES[code];
   if (sprite) {
@@ -158,11 +201,12 @@ function appendBrushVisual(node, code, palette = false) {
     glyph.textContent = BRUSH_BY_CODE.get(code)?.glyph ?? code;
     node.append(glyph);
   }
-  if (["R", "r", "g", "o", "t", "a"].includes(code)) {
-    const badge = document.createElement("span");
-    badge.className = `designer-cell__badge${/[rRa]/.test(code) ? " is-pickup" : ""}`;
-    badge.textContent = code === "R" ? "+2" : ["r", "a"].includes(code) ? "+1" : String(TILE_DEFS[code].cost);
-    node.append(badge);
+  const badge = badgeFor(code);
+  if (badge) {
+    const marker = document.createElement("span");
+    marker.className = `designer-cell__badge${/[rRa]/.test(code) ? " is-pickup" : ""}`;
+    marker.textContent = badge;
+    node.append(marker);
   }
 }
 
@@ -175,8 +219,18 @@ function copyFallback(textarea) {
 export function createLevelDesigner({ onPlaytest } = {}) {
   const dom = {
     open: document.querySelector("#designerButton"),
-    dialog: document.querySelector("#designerDialog"),
+    shell: document.querySelector("#editorShell"),
+    gameShell: document.querySelector("#game"),
     close: document.querySelector("#closeDesignerButton"),
+    viewport: document.querySelector("#editorViewport"),
+    frame: document.querySelector("#editorFrame"),
+    grid: document.querySelector("#designerGrid"),
+    hotbar: document.querySelector("#designerHotbar"),
+    sizes: document.querySelector("#designerBrushSizes"),
+    library: document.querySelector("#designerLibrary"),
+    libraryTray: document.querySelector("#designerLibraryTray"),
+    libraryToggle: document.querySelector("#toggleLibraryButton"),
+    libraryClose: document.querySelector("#closeLibraryButton"),
     select: document.querySelector("#designSelect"),
     create: document.querySelector("#newDesignButton"),
     duplicate: document.querySelector("#duplicateDesignButton"),
@@ -188,8 +242,6 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     tip: document.querySelector("#designTip"),
     width: document.querySelector("#designWidth"),
     height: document.querySelector("#designHeight"),
-    palette: document.querySelector("#designerPalette"),
-    grid: document.querySelector("#designerGrid"),
     status: document.querySelector("#designerStatus"),
     autosave: document.querySelector("#designerAutosave"),
     saveWrap: document.querySelector(".designer-head__save"),
@@ -198,18 +250,24 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     copy: document.querySelector("#copyDesignButton"),
     output: document.querySelector("#designExport"),
   };
-  if (!dom.dialog || !dom.grid || !dom.palette) {
-    return { open() {}, close() {}, activeId: () => null };
+  if (!dom.shell || !dom.grid || !dom.hotbar) {
+    return { open() {}, close() {}, isOpen: () => false, activeId: () => null };
   }
 
   const workspace = readWorkspace();
-  let selectedBrush = ".";
+  let brushSize = 1;
+  let opened = false;
   let painting = false;
-  let paintedCell = "";
+  let strokeCode = EMPTY_CODE;
+  let strokeAnchor = "";
   let saveTimer = null;
 
   function activeDesign() {
     return workspace.designs.find((design) => design.id === workspace.activeId) ?? workspace.designs[0];
+  }
+
+  function selectedCode() {
+    return workspace.hotbar[workspace.activeSlot] ?? EMPTY_CODE;
   }
 
   function setStatus(message, tone = "normal") {
@@ -258,22 +316,99 @@ export function createLevelDesigner({ onPlaytest } = {}) {
       });
   }
 
-  function renderPalette() {
-    dom.palette.replaceChildren();
-    BRUSHES.forEach((brush) => {
+  function renderHotbar() {
+    dom.hotbar.replaceChildren();
+    workspace.hotbar.forEach((code, slot) => {
+      const brush = BRUSH_BY_CODE.get(code);
+      const wrap = document.createElement("button");
+      wrap.type = "button";
+      wrap.className = "editor-hotbar__slot";
+      wrap.dataset.slot = String(slot);
+      wrap.title = `${brush?.label ?? code} · key ${(slot + 1) % 10}`;
+      wrap.setAttribute("aria-label", `Slot ${slot + 1}: ${brush?.label ?? code}`);
+      wrap.setAttribute("aria-pressed", String(slot === workspace.activeSlot));
+
+      const tile = document.createElement("span");
+      appendBrushVisual(tile, code, "palette");
+      const key = document.createElement("kbd");
+      key.className = "editor-hotbar__key";
+      key.textContent = String((slot + 1) % 10);
+
+      wrap.append(tile, key);
+      wrap.addEventListener("click", () => setActiveSlot(slot));
+      dom.hotbar.append(wrap);
+    });
+  }
+
+  function renderLibrary() {
+    dom.library.replaceChildren();
+    BRUSH_GROUPS.forEach((group) => {
+      const section = document.createElement("div");
+      section.className = "editor-library__group";
+      const heading = document.createElement("h4");
+      heading.textContent = group;
+      const tiles = document.createElement("div");
+      tiles.className = "editor-library__tiles";
+      BRUSHES.filter((brush) => brush.group === group).forEach((brush) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.title = brush.label;
+        button.setAttribute("aria-label", `${brush.label}. Load into slot ${workspace.activeSlot + 1}.`);
+        appendBrushVisual(button, brush.code, "palette");
+        button.classList.toggle("is-selected", brush.code === selectedCode());
+        button.addEventListener("click", () => assignToActiveSlot(brush.code));
+        tiles.append(button);
+      });
+      section.append(heading, tiles);
+      dom.library.append(section);
+    });
+  }
+
+  function renderBrushSizes() {
+    dom.sizes.replaceChildren();
+    BRUSH_SIZES.forEach((size) => {
       const button = document.createElement("button");
       button.type = "button";
-      button.dataset.code = brush.code;
-      button.title = brush.label;
-      button.setAttribute("aria-label", brush.label);
-      button.setAttribute("aria-pressed", String(brush.code === selectedBrush));
-      appendBrushVisual(button, brush.code, true);
-      button.addEventListener("click", () => {
-        selectedBrush = brush.code;
-        renderPalette();
-      });
-      dom.palette.append(button);
+      button.className = "editor-size";
+      button.textContent = `${size}×${size}`;
+      button.title = `${size}×${size} brush`;
+      button.setAttribute("aria-pressed", String(size === brushSize));
+      button.addEventListener("click", () => setBrushSize(size));
+      dom.sizes.append(button);
     });
+  }
+
+  function setActiveSlot(slot) {
+    workspace.activeSlot = clamp(slot, 0, HOTBAR_SLOTS - 1);
+    renderHotbar();
+    if (!dom.libraryTray.hidden) renderLibrary();
+    persistNow();
+  }
+
+  function assignToActiveSlot(code) {
+    workspace.hotbar[workspace.activeSlot] = code;
+    renderHotbar();
+    renderLibrary();
+    persistNow();
+    setStatus(`${BRUSH_BY_CODE.get(code)?.label ?? code} loaded into slot ${(workspace.activeSlot + 1) % 10}.`);
+  }
+
+  function setBrushSize(size) {
+    brushSize = BRUSH_SIZES.includes(size) ? size : 1;
+    renderBrushSizes();
+  }
+
+  function cycleBrushSize(step) {
+    const index = BRUSH_SIZES.indexOf(brushSize);
+    setBrushSize(BRUSH_SIZES[clamp(index + step, 0, BRUSH_SIZES.length - 1)]);
+  }
+
+  function toggleLibrary(force = null) {
+    const show = force ?? dom.libraryTray.hidden;
+    dom.libraryTray.hidden = !show;
+    dom.libraryToggle.setAttribute("aria-expanded", String(show));
+    if (show) renderLibrary();
+    fitGrid();
   }
 
   function updateGridCell(r, c) {
@@ -304,49 +439,94 @@ export function createLevelDesigner({ onPlaytest } = {}) {
         dom.grid.append(cell);
       }
     }
+    fitGrid();
   }
 
-  function paintCell(cell) {
-    if (!cell?.classList.contains("designer-cell")) return;
-    const r = Number(cell.dataset.r);
-    const c = Number(cell.dataset.c);
-    const paintKey = `${r},${c},${selectedBrush}`;
-    if (paintKey === paintedCell) return;
-    paintedCell = paintKey;
+  // The canvas scales the way the real board does, so a full-size map never needs scrolling.
+  function fitGrid() {
+    if (!opened) return;
+    const design = activeDesign();
+    const width = dom.viewport.clientWidth;
+    const height = dom.viewport.clientHeight;
+    if (!width || !height) return;
+    const viewportStyle = window.getComputedStyle(dom.viewport);
+    const frameStyle = window.getComputedStyle(dom.frame);
+    const horizontalPadding = Number.parseFloat(viewportStyle.paddingLeft) + Number.parseFloat(viewportStyle.paddingRight);
+    const verticalPadding = Number.parseFloat(viewportStyle.paddingTop) + Number.parseFloat(viewportStyle.paddingBottom);
+    const horizontalFrame = Number.parseFloat(frameStyle.borderLeftWidth) + Number.parseFloat(frameStyle.borderRightWidth);
+    const verticalFrame = Number.parseFloat(frameStyle.borderTopWidth) + Number.parseFloat(frameStyle.borderBottomWidth);
+    const cellSize = Math.max(MIN_CELL_SIZE, Math.floor(Math.min(
+      (width - horizontalPadding - horizontalFrame) / design.width,
+      (height - verticalPadding - verticalFrame) / design.height,
+      MAX_CELL_SIZE,
+    )));
+    dom.grid.style.setProperty("--designer-cell-size", `${cellSize}px`);
+    dom.frame.style.width = `${cellSize * design.width + horizontalFrame}px`;
+    dom.frame.style.height = `${cellSize * design.height + verticalFrame}px`;
+    dom.frame.classList.toggle("editor-frame--dense", cellSize < 34);
+  }
+
+  // Returns "painted" only when the map actually changed, so a wide stroke can report why it skipped tiles.
+  function paintAt(r, c, code) {
     const design = activeDesign();
     const targetCode = design.map[r]?.[c];
-    if (targetCode === selectedBrush) return;
+    if (targetCode === undefined) return "outside";
+    if (targetCode === code) return "same";
+    if (UNIQUE_CODES.includes(targetCode) && !UNIQUE_CODES.includes(code)) return "protected";
 
-    if (["S", "G"].includes(targetCode) && !["S", "G"].includes(selectedBrush)) {
-      setStatus("Keep one commander and one banner. Move a marker by selecting its matching brush.", "error");
-      return;
-    }
-
-    if (["S", "G"].includes(selectedBrush)) {
-      const oppositeMarker = selectedBrush === "S" ? "G" : "S";
+    if (UNIQUE_CODES.includes(code)) {
+      const oppositeMarker = code === "S" ? "G" : "S";
       const swapsMarkers = targetCode === oppositeMarker;
       let markerWasMoved = false;
       design.map.forEach((row, rowIndex) => {
-        const previousColumn = row.indexOf(selectedBrush);
+        const previousColumn = row.indexOf(code);
         if (previousColumn < 0) return;
         const replacement = [...row];
-        replacement[previousColumn] = swapsMarkers && !markerWasMoved ? oppositeMarker : ".";
+        replacement[previousColumn] = swapsMarkers && !markerWasMoved ? oppositeMarker : EMPTY_CODE;
         markerWasMoved = true;
         design.map[rowIndex] = replacement.join("");
         updateGridCell(rowIndex, previousColumn);
       });
-      if (swapsMarkers && !markerWasMoved) {
-        setStatus(`Paint the missing ${selectedBrush === "S" ? "commander" : "banner"} on an empty tile first.`, "error");
-        return;
-      }
+      if (swapsMarkers && !markerWasMoved) return "missing";
     }
 
     const row = [...design.map[r]];
-    row[c] = selectedBrush;
+    row[c] = code;
     design.map[r] = row.join("");
     updateGridCell(r, c);
-    setStatus("Draft changed. Analyze when the route is ready.");
-    scheduleSave();
+    return "painted";
+  }
+
+  function paintStroke(cell) {
+    if (!cell?.classList.contains("designer-cell")) return;
+    const r = Number(cell.dataset.r);
+    const c = Number(cell.dataset.c);
+    const anchorKey = `${r},${c}`;
+    if (anchorKey === strokeAnchor) return;
+    strokeAnchor = anchorKey;
+
+    // Unique markers are single tiles no matter how wide the brush is.
+    const size = UNIQUE_CODES.includes(strokeCode) ? 1 : brushSize;
+    const offset = Math.floor((size - 1) / 2);
+    const outcomes = [];
+    for (let dr = 0; dr < size; dr += 1) {
+      for (let dc = 0; dc < size; dc += 1) {
+        outcomes.push(paintAt(r - offset + dr, c - offset + dc, strokeCode));
+      }
+    }
+
+    if (outcomes.includes("painted")) {
+      setStatus("Draft changed. Analyze when the route is ready.");
+      scheduleSave();
+      return;
+    }
+    if (outcomes.includes("missing")) {
+      setStatus(`Paint the missing ${strokeCode === "S" ? "commander" : "banner"} on an empty tile first.`, "error");
+      return;
+    }
+    if (outcomes.includes("protected")) {
+      setStatus("Keep one commander and one banner. Move a marker by selecting its own brush.", "error");
+    }
   }
 
   function renderActiveDesign() {
@@ -409,29 +589,44 @@ export function createLevelDesigner({ onPlaytest } = {}) {
 
   function open(designId = null) {
     if (designId && workspace.designs.some((design) => design.id === designId)) workspace.activeId = designId;
+    opened = true;
+    document.body.classList.add("mode-editor");
+    dom.shell.hidden = false;
+    if (dom.gameShell) dom.gameShell.hidden = true;
+    dom.open?.setAttribute("aria-pressed", "true");
     renderActiveDesign();
     persistNow();
-    if (!dom.dialog.open) dom.dialog.showModal();
+    window.requestAnimationFrame(fitGrid);
   }
 
   function close() {
     painting = false;
+    opened = false;
     persistNow();
-    if (dom.dialog.open) dom.dialog.close();
+    document.body.classList.remove("mode-editor");
+    dom.shell.hidden = true;
+    if (dom.gameShell) dom.gameShell.hidden = false;
+    dom.open?.setAttribute("aria-pressed", "false");
+    toggleLibrary(false);
   }
 
-  renderPalette();
+  renderHotbar();
+  renderBrushSizes();
   renderActiveDesign();
   persistNow();
 
-  dom.open?.addEventListener("click", () => open());
+  dom.open?.addEventListener("click", () => (opened ? close() : open()));
   dom.close?.addEventListener("click", close);
-  dom.dialog.addEventListener("click", (event) => {
-    if (event.target === dom.dialog) close();
+  // Reaching for Missions or the field guide means leaving the workshop, not stacking a drawer over a hidden board.
+  ["#campaignToggleButton", "#helpToggleButton"].forEach((selector) => {
+    document.querySelector(selector)?.addEventListener("click", () => {
+      if (opened) close();
+    }, true);
   });
-  dom.dialog.addEventListener("close", () => {
-    painting = false;
-    persistNow();
+  dom.libraryToggle.addEventListener("click", () => toggleLibrary());
+  dom.libraryClose.addEventListener("click", () => {
+    toggleLibrary(false);
+    dom.libraryToggle.focus({ preventScroll: true });
   });
   dom.select.addEventListener("change", () => {
     workspace.activeId = dom.select.value;
@@ -480,27 +675,62 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   dom.width.addEventListener("change", resizeMap);
   dom.height.addEventListener("change", resizeMap);
 
+  // Left paints the hotbar brush; right always clears back to the default empty tile.
+  dom.grid.addEventListener("contextmenu", (event) => event.preventDefault());
   dom.grid.addEventListener("pointerdown", (event) => {
-    if (event.button !== undefined && event.button !== 0) return;
+    if (event.button !== 0 && event.button !== 2) return;
     painting = true;
-    paintedCell = "";
-    paintCell(event.target.closest(".designer-cell"));
+    strokeCode = event.button === 2 ? EMPTY_CODE : selectedCode();
+    strokeAnchor = "";
+    paintStroke(event.target.closest(".designer-cell"));
     try { dom.grid.setPointerCapture?.(event.pointerId); } catch { /* Some synthetic or older pointers cannot be captured. */ }
     event.preventDefault();
   });
   dom.grid.addEventListener("pointermove", (event) => {
     if (!painting) return;
     const element = document.elementFromPoint(event.clientX, event.clientY);
-    paintCell(element?.closest?.(".designer-cell"));
+    paintStroke(element?.closest?.(".designer-cell"));
     event.preventDefault();
   });
   const endPaint = () => {
     painting = false;
-    paintedCell = "";
+    strokeAnchor = "";
   };
   dom.grid.addEventListener("pointerup", endPaint);
   dom.grid.addEventListener("pointercancel", endPaint);
   dom.grid.addEventListener("lostpointercapture", endPaint);
+  dom.grid.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const step = event.deltaY > 0 ? 1 : -1;
+    setActiveSlot((workspace.activeSlot + step + HOTBAR_SLOTS) % HOTBAR_SLOTS);
+  }, { passive: false });
+
+  document.addEventListener("keydown", (event) => {
+    if (!opened || event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && (target.closest("input, textarea, select") || target.isContentEditable)) return;
+    if (event.key === "Escape") {
+      if (dom.libraryTray.hidden) close();
+      else toggleLibrary(false);
+      event.preventDefault();
+      return;
+    }
+    const digit = "1234567890".indexOf(event.key);
+    if (digit >= 0) {
+      setActiveSlot(digit);
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "[" || event.key === "]") {
+      cycleBrushSize(event.key === "]" ? 1 : -1);
+      event.preventDefault();
+      return;
+    }
+    if (event.key.toLowerCase() === "e") {
+      toggleLibrary();
+      event.preventDefault();
+    }
+  });
 
   dom.analyze.addEventListener("click", analyzeActiveDesign);
   dom.playtest.addEventListener("click", () => {
@@ -524,11 +754,16 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     }
     setStatus(copied ? "Level data copied. Paste it back into chat whenever it is ready." : "Select the export text and copy it manually.", copied ? "success" : "error");
   });
+
+  const gridResizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(fitGrid) : null;
+  gridResizeObserver?.observe(dom.viewport);
+  window.addEventListener("resize", fitGrid);
   window.addEventListener("beforeunload", persistNow);
 
   return {
     open,
     close,
+    isOpen: () => opened,
     activeId: () => activeDesign().id,
   };
 }

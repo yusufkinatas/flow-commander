@@ -36,9 +36,12 @@ assert.deepEqual(
   "Aegis must publish its protection rule label.",
 );
 
-const pack6Brushes = BRUSHES.filter((brush) => ["i", "p", "a"].includes(brush.code));
-assert.deepEqual(pack6Brushes.map((brush) => brush.code), ["i", "p", "a"], "The editor must expose all three Pack 6 brushes.");
-assert.deepEqual(pack6Brushes.map((brush) => brush.glyph), ["↕↔", "↱↰", "◆"], "Editor glyphs must remain readable without color.");
+// The palette is grouped by tile kind, so array position encodes its group rather than any priority.
+const pack6Brushes = new Map(BRUSHES.filter((brush) => ["i", "p", "a"].includes(brush.code)).map((brush) => [brush.code, brush]));
+assert.deepEqual([...pack6Brushes.keys()].sort(), ["a", "i", "p"], "The editor must expose all three Pack 6 brushes.");
+assert.equal(pack6Brushes.get("i").glyph, "↕↔", "Stride's editor glyph must remain readable without color.");
+assert.equal(pack6Brushes.get("p").glyph, "↱↰", "Pivot's editor glyph must remain readable without color.");
+assert.equal(pack6Brushes.get("a").glyph, "◆", "Aegis's editor glyph must remain readable without color.");
 const normalized = normalizeDesign({
   id: "pack6-workshop",
   width: 8,

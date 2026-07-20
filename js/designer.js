@@ -256,6 +256,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     viewport: document.querySelector("#editorViewport"),
     frame: document.querySelector("#editorFrame"),
     grid: document.querySelector("#designerGrid"),
+    routeLayer: document.querySelector("#designerRouteLayer"),
     hotbar: document.querySelector("#designerHotbar"),
     sizes: document.querySelector("#designerBrushSizes"),
     library: document.querySelector("#designerLibrary"),
@@ -330,6 +331,34 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     dom.readiness.textContent = issues.length
       ? `Not playable · ${listPhrase(issues)}. The draft still saves.`
       : "Playable · one commander, one banner. Analyze to prove it can be won.";
+  }
+
+  // The solved route is drawn with the game's own route layer, so the answer the
+  // workshop shows is the line the player would draw.
+  function drawSolution(path) {
+    const design = activeDesign();
+    dom.routeLayer.replaceChildren();
+    if (!path?.length) {
+      dom.routeLayer.hidden = true;
+      return;
+    }
+    dom.routeLayer.setAttribute("viewBox", `0 0 ${design.width} ${design.height}`);
+    dom.routeLayer.setAttribute("preserveAspectRatio", "none");
+    const points = path.map(({ r, c }) => `${c + 0.5},${r + 0.5}`).join(" ");
+    ["route-shadow", "route-line is-executed"].forEach((className) => {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      line.setAttribute("class", className);
+      line.setAttribute("points", points);
+      dom.routeLayer.append(line);
+    });
+    dom.routeLayer.hidden = false;
+  }
+
+  // Any edit makes a drawn route a claim about a map that no longer exists.
+  function clearSolution() {
+    if (dom.routeLayer.hidden) return;
+    dom.routeLayer.replaceChildren();
+    dom.routeLayer.hidden = true;
   }
 
   // Analyze and playtest both hand the map to the real game, which cannot start
@@ -488,6 +517,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
 
   function renderGrid() {
     const design = activeDesign();
+    clearSolution();
     dom.grid.replaceChildren();
     dom.grid.style.setProperty("--design-cols", design.width);
     for (let r = 0; r < design.height; r += 1) {
@@ -622,6 +652,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     for (const point of lineBetween(from, { r, c })) stamp(point.r, point.c, outcomes);
 
     if (outcomes.includes("painted")) {
+      clearSolution();
       setStatus("Draft changed. Analyze when the route is ready.");
       scheduleSave();
     }
@@ -665,6 +696,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
 
   function analyzeActiveDesign() {
     if (dom.analyze.disabled || blockedBy("analyze")) return;
+    clearSolution();
     setStatus("Searching for a legal winning route…", "working");
     dom.analyze.disabled = true;
     window.setTimeout(() => {
@@ -673,7 +705,8 @@ export function createLevelDesigner({ onPlaytest } = {}) {
         const analysis = analyzeLevel(level, { solutionLimit: 1, nodeLimit: 350_000 });
         const metrics = analysis.metrics;
         if (analysis.solvable) {
-          setStatus(`Winning route found · ${metrics.solutionDepth} moves · ${metrics.solutionTurns} turns · alternative routes are allowed.`, "success");
+          drawSolution(analysis.solutions[0]?.path);
+          setStatus(`Winning route found and drawn on the map · ${metrics.solutionDepth} moves · ${metrics.solutionTurns} turns · alternative routes are allowed.`, "success");
         } else if (metrics.aborted) {
           setStatus(`No winning route was found within 350,000 checks. Simplify the search or verify the map another way.`, "error");
         } else {

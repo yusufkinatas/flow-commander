@@ -5710,6 +5710,17 @@ body.hud-help-open .help-panel {
   border-left: 1px solid rgba(255, 201, 92, 0.34);
 }
 
+/* The solved route rides above the painted cells, and its stroke does not scale with
+   the viewBox, so a workshop cell smaller than a board cell needs a thinner line. */
+.editor-frame .route-layer {
+  z-index: 5;
+}
+
+.editor-frame .route-shadow { stroke-width: 9px; }
+.editor-frame .route-line { stroke-width: 5px; }
+.editor-frame--dense .route-shadow { stroke-width: 6px; }
+.editor-frame--dense .route-line { stroke-width: 3px; }
+
 /* The footprint a wide brush is about to commit to. */
 .designer-grid > .designer-cell.is-brush-preview {
   z-index: 4;

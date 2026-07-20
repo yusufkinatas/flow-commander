@@ -12,7 +12,9 @@ const HOTBAR_SLOTS = 10;
 const BRUSH_SIZES = Object.freeze([1, 2, 3]);
 const MAX_CELL_SIZE = 96;
 const MIN_CELL_SIZE = 14;
-// One commander and one banner per map, so these never paint as a block and never erase by accident.
+// A map holds one commander and one banner, so painting either moves it instead of
+// adding a second, and neither ever paints as a block. Erasing them is allowed: a
+// half-drawn map is a normal thing to save, and the readiness line says what is missing.
 const UNIQUE_CODES = Object.freeze(["S", "G"]);
 
 const BRUSHES = Object.freeze([
@@ -148,6 +150,25 @@ function readWorkspace() {
   return { designs: [starter], activeId: starter.id, hotbar: normalizeHotbar(null), activeSlot: 0 };
 }
 
+// A draft is free to be half-finished. These are the pieces the game itself cannot
+// start without, reported in plain words rather than as a parser error.
+function designIssues(design) {
+  const tally = (code) => design.map.reduce((total, row) => total + [...row].filter((tile) => tile === code).length, 0);
+  const issues = [];
+  const commanders = tally("S");
+  const banners = tally("G");
+  if (!commanders) issues.push("no commander start");
+  else if (commanders > 1) issues.push(`${commanders} commander starts`);
+  if (!banners) issues.push("no royal banner");
+  else if (banners > 1) issues.push(`${banners} royal banners`);
+  return issues;
+}
+
+function listPhrase(items) {
+  if (items.length < 2) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
 function exportableLevel(design) {
   return {
     id: 1,
@@ -253,6 +274,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     width: document.querySelector("#designWidth"),
     height: document.querySelector("#designHeight"),
     status: document.querySelector("#designerStatus"),
+    readiness: document.querySelector("#designerReadiness"),
     autosave: document.querySelector("#designerAutosave"),
     saveWrap: document.querySelector(".designer-head__save"),
     analyze: document.querySelector("#analyzeDesignButton"),
@@ -302,6 +324,23 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     dom.output.value = JSON.stringify(exportableLevel(activeDesign()), null, 2);
   }
 
+  function renderReadiness() {
+    const issues = designIssues(activeDesign());
+    dom.readiness.classList.toggle("is-blocked", issues.length > 0);
+    dom.readiness.textContent = issues.length
+      ? `Not playable · ${listPhrase(issues)}. The draft still saves.`
+      : "Playable · one commander, one banner. Analyze to prove it can be won.";
+  }
+
+  // Analyze and playtest both hand the map to the real game, which cannot start
+  // without these pieces. Say which one is missing instead of failing to launch.
+  function blockedBy(action) {
+    const issues = designIssues(activeDesign());
+    if (!issues.length) return false;
+    setStatus(`Cannot ${action} yet · ${listPhrase(issues)}. Paint the missing tile, then try again.`, "error");
+    return true;
+  }
+
   function persistNow() {
     if (saveTimer) window.clearTimeout(saveTimer);
     saveTimer = null;
@@ -320,6 +359,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     dom.saveWrap?.classList.add("is-saving");
     dom.autosave.textContent = "Saving locally…";
     refreshExport();
+    renderReadiness();
     if (saveTimer) window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(persistNow, 120);
   }
@@ -497,22 +537,17 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     const targetCode = design.map[r]?.[c];
     if (targetCode === undefined) return "outside";
     if (targetCode === code) return "same";
-    if (UNIQUE_CODES.includes(targetCode) && !UNIQUE_CODES.includes(code)) return "protected";
 
+    // Painting a marker relocates the one already on the map rather than duplicating it.
     if (UNIQUE_CODES.includes(code)) {
-      const oppositeMarker = code === "S" ? "G" : "S";
-      const swapsMarkers = targetCode === oppositeMarker;
-      let markerWasMoved = false;
       design.map.forEach((row, rowIndex) => {
         const previousColumn = row.indexOf(code);
         if (previousColumn < 0) return;
         const replacement = [...row];
-        replacement[previousColumn] = swapsMarkers && !markerWasMoved ? oppositeMarker : EMPTY_CODE;
-        markerWasMoved = true;
+        replacement[previousColumn] = EMPTY_CODE;
         design.map[rowIndex] = replacement.join("");
         updateGridCell(rowIndex, previousColumn);
       });
-      if (swapsMarkers && !markerWasMoved) return "missing";
     }
 
     const row = [...design.map[r]];
@@ -589,14 +624,6 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     if (outcomes.includes("painted")) {
       setStatus("Draft changed. Analyze when the route is ready.");
       scheduleSave();
-      return;
-    }
-    if (outcomes.includes("missing")) {
-      setStatus(`Paint the missing ${strokeCode === "S" ? "commander" : "banner"} on an empty tile first.`, "error");
-      return;
-    }
-    if (outcomes.includes("protected")) {
-      setStatus("Keep one commander and one banner. Move a marker by selecting its own brush.", "error");
     }
   }
 
@@ -612,6 +639,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
     renderSelect();
     renderGrid();
     refreshExport();
+    renderReadiness();
     setStatus("Paint a route, then analyze it to confirm the level can be won.");
   }
 
@@ -636,7 +664,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   }
 
   function analyzeActiveDesign() {
-    if (dom.analyze.disabled) return;
+    if (dom.analyze.disabled || blockedBy("analyze")) return;
     setStatus("Searching for a legal winning route…", "working");
     dom.analyze.disabled = true;
     window.setTimeout(() => {
@@ -702,6 +730,7 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   }
 
   function playtestActiveDesign() {
+    if (blockedBy("playtest")) return;
     try {
       const level = parseActiveDesign();
       persistNow();

@@ -2316,6 +2316,18 @@ dom.hudScrim.addEventListener("click", () => {
   setActiveHudDrawer(null);
   returnTarget.focus({ preventScroll: true });
 });
+// P leaves the workshop for a playtest, so the same key brings the draft back.
+document.addEventListener("keydown", (event) => {
+  if (event.key.toLowerCase() !== "p" || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (!session.playtest || designerController?.isOpen()) return;
+  const target = event.target;
+  if (target instanceof HTMLElement && (target.closest("input, textarea, select") || target.isContentEditable)) return;
+  returnToDesigner();
+  // Reopening the workshop synchronously would otherwise let its own P handler
+  // see an open workshop and bounce straight back into a playtest.
+  event.preventDefault();
+  event.stopImmediatePropagation();
+});
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (!document.body.classList.contains("hud-campaign-open") && !document.body.classList.contains("hud-help-open")) return;

@@ -822,7 +822,8 @@ export function createLevelDesigner({ onPlaytest } = {}) {
   }, { passive: false });
 
   document.addEventListener("keydown", (event) => {
-    if (!opened || event.metaKey || event.ctrlKey || event.altKey) return;
+    // A key the game already consumed can be what reopened the workshop mid-event.
+    if (!opened || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
     const target = event.target;
     if (target instanceof HTMLElement && (target.closest("input, textarea, select") || target.isContentEditable)) return;
     if (event.key === "Escape") {

@@ -5279,7 +5279,8 @@ body.hud-help-open .help-panel {
 }
 
 .editor-hint kbd,
-.tool-button kbd {
+.tool-button kbd,
+.shortcut-key {
   display: inline-grid;
   min-width: 13px;
   height: 13px;
@@ -5531,6 +5532,25 @@ body.hud-help-open .help-panel {
   width: 100%;
   min-height: 38px;
   margin-bottom: 8px;
+}
+
+/* A key badge sits where each button's decorative glyph used to, so the
+   shortcut is legible on the control it triggers. */
+.shortcut-key {
+  margin-right: 2px;
+}
+
+.designer-mini-actions .shortcut-key {
+  min-width: 12px;
+  height: 12px;
+  font-size: 7px;
+}
+
+/* The primary button is gold, so a translucent-white badge would wash out. */
+.primary-button .shortcut-key {
+  border-color: rgba(38, 26, 6, 0.34);
+  color: #3a2a08;
+  background: rgba(38, 26, 6, 0.14);
 }
 
 /* ---------- narrow screens ---------- */

@@ -289,9 +289,7 @@
             <div class="editor-hotbar" id="designerHotbar" role="toolbar" aria-label="Brush hotbar"></div>
             <p class="editor-hint" id="designerHotbarHelp">
               <kbd>1</kbd>–<kbd>0</kbd> pick a brush · scroll to cycle · <kbd>[</kbd><kbd>]</kbd> brush size ·
-              <strong>right-click</strong> clears back to meadow<br />
-              <kbd>A</kbd> analyze · <kbd>P</kbd> playtest · <kbd>N</kbd> new · <kbd>D</kbd> duplicate ·
-              <kbd>C</kbd> copy level data · <kbd>backspace</kbd> delete
+              <strong>right-click</strong> clears back to meadow
             </p>
           </div>
           <div class="editor-footer__controls">
@@ -321,10 +319,10 @@
           <p class="designer-status" id="designerStatus" role="status" aria-live="polite">Paint a start, a banner, and a route to begin.</p>
           <div class="designer-primary-actions">
             <button class="secondary-button" id="analyzeDesignButton" type="button">
-              <span aria-hidden="true">⌁</span> ANALYZE
+              <kbd class="shortcut-key" aria-hidden="true">A</kbd> ANALYZE
             </button>
             <button class="primary-button" id="playtestDesignButton" type="button">
-              PLAYTEST <span aria-hidden="true">▶</span>
+              <kbd class="shortcut-key" aria-hidden="true">P</kbd> PLAYTEST <span aria-hidden="true">▶</span>
             </button>
           </div>
         </section>
@@ -339,9 +337,9 @@
             <select id="designSelect" aria-describedby="designerAutosave"></select>
           </label>
           <div class="designer-mini-actions" aria-label="Manage saved designs">
-            <button id="newDesignButton" type="button"><span aria-hidden="true">＋</span> NEW</button>
-            <button id="duplicateDesignButton" type="button"><span aria-hidden="true">⧉</span> DUPLICATE</button>
-            <button class="is-danger" id="deleteDesignButton" type="button"><span aria-hidden="true">×</span> DELETE</button>
+            <button id="newDesignButton" type="button"><kbd class="shortcut-key" aria-hidden="true">N</kbd> NEW</button>
+            <button id="duplicateDesignButton" type="button"><kbd class="shortcut-key" aria-hidden="true">D</kbd> DUPLICATE</button>
+            <button class="is-danger" id="deleteDesignButton" type="button"><kbd class="shortcut-key" aria-hidden="true">⌫</kbd> DELETE</button>
           </div>
         </section>
 
@@ -408,7 +406,7 @@
             </div>
           </summary>
           <button class="secondary-button designer-copy-button" id="copyDesignButton" type="button">
-            <span aria-hidden="true">⧉</span> COPY LEVEL
+            <kbd class="shortcut-key" aria-hidden="true">C</kbd> COPY LEVEL
           </button>
           <label class="designer-field designer-field--wide" for="designExport">
             <span class="sr-only">Exported level data</span>

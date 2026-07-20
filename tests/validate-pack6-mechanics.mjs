@@ -36,9 +36,12 @@ assert.deepEqual(
   "Aegis must publish its protection rule label.",
 );
 
-const pack6Brushes = BRUSHES.filter((brush) => ["i", "p", "a"].includes(brush.code));
-assert.deepEqual(pack6Brushes.map((brush) => brush.code), ["i", "p", "a"], "The editor must expose all three Pack 6 brushes.");
-assert.deepEqual(pack6Brushes.map((brush) => brush.glyph), ["↕↔", "↱↰", "◆"], "Editor glyphs must remain readable without color.");
+// The palette is grouped by tile kind, so array position encodes its group rather than any priority.
+const pack6Brushes = new Map(BRUSHES.filter((brush) => ["i", "p", "a"].includes(brush.code)).map((brush) => [brush.code, brush]));
+assert.deepEqual([...pack6Brushes.keys()].sort(), ["a", "i", "p"], "The editor must expose all three Pack 6 brushes.");
+assert.equal(pack6Brushes.get("i").glyph, "↕↔", "Stride's editor glyph must remain readable without color.");
+assert.equal(pack6Brushes.get("p").glyph, "↱↰", "Pivot's editor glyph must remain readable without color.");
+assert.equal(pack6Brushes.get("a").glyph, "◆", "Aegis's editor glyph must remain readable without color.");
 const normalized = normalizeDesign({
   id: "pack6-workshop",
   width: 8,
@@ -454,6 +457,7 @@ assert.ok(solverTrace.state.events.some((event) => event.type === "goblin" && ev
 
 // The UI contract must expose each mechanic in planning, execution, the HUD, and the teal Pack 6 theme.
 const game = readFileSync(resolve(root, "js/game.js"), "utf8");
+const tiles = readFileSync(resolve(root, "js/tiles.js"), "utf8");
 const html = readFileSync(resolve(root, "index.html"), "utf8");
 const styles = readFileSync(resolve(root, "styles.css"), "utf8");
 assert.match(html, /id="aegisCard"/);
@@ -526,10 +530,14 @@ assert.match(
   "The Aegis HUD must appear only when the level contains Aegis or the party carries one.",
 );
 
+// Marker rendering lives in the shared tile module; planning and execution stay in the game loop.
 for (const contract of [
   /maneuver-marker--stride/,
   /maneuver-marker--pivot/,
   /aegis-symbol/,
+]) assert.match(tiles, contract, "The shared tile renderer must preserve the Pack 6 marker silhouettes.");
+
+for (const contract of [
   /is-planned-marker-pending/,
   /is-planned-marker-resolved/,
   /is-planned-protected/,
@@ -552,9 +560,10 @@ for (const contract of [
   /\.cell\.is-planned-marker-pending/,
   /\.cell\.is-planned-protected/,
   /\.execution-fx--aegis-guard/,
-  /\.designer-cell--stride/,
-  /\.designer-cell--pivot/,
-  /\.designer-cell--aegis/,
 ]) assert.match(styles, contract, "CSS must expose distinct Pack 6 tile, state, editor, and teal-theme visuals.");
+
+// The workshop renders real board cells, so a parallel editor tile skin must not reappear:
+// it is how the two surfaces drifted apart in the first place.
+assert.doesNotMatch(styles, /\.designer-cell--/, "Editor tiles must reuse the board's .cell-- visuals, not a parallel skin.");
 
 console.log("✓ Pack 6 mechanics: departure geometry · Aegis strength/stacking · immutability · solver/trace parity · staged UI/editor states");

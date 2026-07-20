@@ -12,6 +12,7 @@ function read(relativePath) {
 }
 
 const game = read("js/game.js");
+const tiles = read("js/tiles.js");
 const html = read("index.html");
 const styles = read("styles.css");
 
@@ -198,7 +199,7 @@ assert.ok(
 );
 
 // Visual/audio manifests must point at shipped assets and retain license provenance.
-const visualManifest = objectManifest(game, "ASSETS");
+const visualManifest = objectManifest(tiles, "ASSETS");
 const audioManifest = objectManifest(game, "AUDIO_ASSETS");
 const requiredAudioEntries = [
   "draw", "footsteps", "soldierPickup", "builderPickup", "healerPickup", "magePickup", "mageCast",
@@ -231,7 +232,7 @@ for (const cue of executionCueNames) {
   assert.match(game, new RegExp(`case\\s+["']${cue}["']\\s*:`), `Soundboard.play() must retain the ${cue} cue.`);
 }
 
-assert.match(game, /case\s+["']formation["']\s*:[\s\S]*formation-gate/, "Formation Checkpoints must render a permanent shape-and-text marker.");
+assert.match(tiles, /case\s+["']formation["']\s*:[\s\S]*formation-gate/, "Formation Checkpoints must render a permanent shape-and-text marker.");
 assert.match(game, /is-planned-formation-open/, "Formation Checkpoints must expose a planning-preview state.");
 assert.match(game, /is-event-formation-open/, "Formation Checkpoints must expose a distinct execution state.");
 assert.match(cssWithoutComments, /\.formation-gate\b/, "Formation Checkpoints must have a dedicated silhouette independent of color.");

@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { PACKS } from "../js/levels.js";
 import {
+  allEnemiesDead,
   analyzeLevel,
   beaconsComplete,
+  heroPlanContext,
+  huntCommander,
+  pathFromDirections,
   directionsFromPath,
   keyOf,
   parseLevel,
@@ -10,7 +14,7 @@ import {
 } from "../js/engine.js";
 import { exportableLevel, normalizeDesign } from "../js/designer.js";
 
-assert.deepEqual(PACKS.map((pack) => pack.levels.length), [10, 6, 5, 3, 25, 25], "The six packs must contain 10, 6, 5, 3, 25, and 25 levels.");
+assert.deepEqual(PACKS.map((pack) => pack.levels.length), [10, 6, 5, 3, 25, 25, 6], "The seven packs must contain 10, 6, 5, 3, 25, 25, and 6 levels.");
 
 const report = [];
 for (const pack of PACKS) {
@@ -26,8 +30,38 @@ for (const pack of PACKS) {
     assert.equal(analysis.solvable, true, `${pack.name} level ${level.id} must have at least one winning route.`);
 
     const solution = analysis.solutions[0];
-    const paths = level.mode === "convoy" ? solution.routes.map((route) => route.path) : [solution.path];
-    if (level.mode === "convoy") {
+    const multiRoute = level.mode === "convoy" || level.mode === "hunt";
+    const paths = multiRoute ? solution.routes.map((route) => route.path) : [solution.path];
+    if (level.mode === "hunt") {
+      // A hunt solution is a whole party plan: distinct camps, three legal routes, nothing left alive.
+      assert.deepEqual(
+        [...solution.routes.map((route) => route.heroId)].sort(),
+        ["mage", "rogue", "warrior"],
+        `${pack.name} level ${level.id} must route every hunter exactly once.`,
+      );
+      const campKeys = Object.values(solution.assignment).map(keyOf);
+      assert.equal(new Set(campKeys).size, 3, `${pack.name} level ${level.id} must post the hunters to distinct camps.`);
+      const solved = heroPlanContext(level, {
+        order: solution.order,
+        assignment: solution.assignment,
+        paths: Object.fromEntries(solution.routes.map((route) => [route.heroId, route.path])),
+      });
+      assert.equal(solved.solved, true, `${pack.name} level ${level.id}'s solver plan must replay as solved.`);
+      assert.equal(allEnemiesDead(level, solved.deadEnemies), true, `${pack.name} level ${level.id} must leave nothing alive.`);
+
+      // The authored reference plan must still clear the level exactly as written.
+      const reference = level.reference;
+      assert.ok(reference, `${pack.name} level ${level.id} must publish its intended party plan.`);
+      const referencePaths = Object.fromEntries(reference.order.map((heroId) => [
+        heroId,
+        pathFromDirections(level, reference.routes[heroId] ?? "", huntCommander(level, heroId, reference.assignment[heroId])),
+      ]));
+      const replayed = heroPlanContext(level, { order: reference.order, assignment: reference.assignment, paths: referencePaths });
+      replayed.entries.forEach((entry) => {
+        assert.equal(entry.trace?.ok, true, `${pack.name} level ${level.id}: the ${entry.heroId}'s reference route must be legal.`);
+      });
+      assert.equal(replayed.solved, true, `${pack.name} level ${level.id}'s reference plan must clear the moor.`);
+    } else if (level.mode === "convoy") {
       const occupied = new Set();
       const litBeacons = new Set();
       const expectedCommanderIds = new Set(level.commanders.map((commander) => commander.id));
@@ -167,4 +201,4 @@ const openFieldAcceptance = analyzeLevel(openFieldLevel, { solutionLimit: 1, nod
 assert.equal(openFieldAcceptance.solvable, true, "An open field with alternative winning routes must pass solvability validation.");
 
 console.table(report);
-console.log("✓ 74 levels have winning routes · open alternatives accepted · free commander order proven · workshop export verified · all mechanics present");
+console.log("✓ 80 levels have winning routes · open alternatives accepted · free commander order proven · hunt party plans replayed · workshop export verified · all mechanics present");

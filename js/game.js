@@ -1,9 +1,13 @@
 import {
   TILE_DEFS,
+  allEnemiesDead,
   beaconsComplete,
   createPartyState,
   deliveriesComplete,
   forcedDirectionAt,
+  heroPlanContext,
+  huntCommander,
+  huntHazards,
   isAdjacent,
   keyOf,
   movementLimit,
@@ -14,7 +18,7 @@ import {
   tracePath,
 } from "./engine.js";
 import { PACKS, levelKey } from "./levels.js";
-import { ASSETS, image, renderTileContents } from "./tiles.js";
+import { ASSETS, cellModifier, image, renderTileContents } from "./tiles.js";
 import { createLevelDesigner } from "./designer.js";
 
 const AUDIO_ASSETS = Object.freeze({
@@ -443,6 +447,19 @@ class Soundboard {
         this.sample("soldierImpact", step, { volume: 0.3, rate: 0.76 });
         this.tone(150, 0.18, "square", 0.08, 0, 310);
         break;
+      // The Hunters' Moon reuses the retained Kenney selection: a hunter's strike is the
+      // soldier windup and impact played back to back, and an arcane bolt is the mage cast.
+      case "huntKill":
+        this.sample("soldierWindup", step, { volume: 0.3, rate: 1.22 });
+        this.sample("soldierImpact", step, { volume: 0.36, rate: 1.1 });
+        this.noise(0.07, 0.06);
+        this.tone(180, 0.11, "square", 0.07, 0.03, 120);
+        break;
+      case "bolt":
+        this.sample("mageCast", step, { volume: 0.32, rate: 1.26 });
+        this.tone(620, 0.09, "sine", 0.06, 0, 940);
+        this.tone(990, 0.15, "triangle", 0.05, 0.07, 660);
+        break;
       case "blocked":
         this.tone(92, 0.12, "square", 0.075);
         break;
@@ -467,6 +484,12 @@ const session = {
   routes: [],
   drafts: new Map(),
   commanderIndex: 0,
+  // Hunt mode: which camp each hunter holds, and the order those postings happened in.
+  // Assignment order is execution order, so `order` is the plan, not a display detail.
+  assignments: new Map(),
+  order: [],
+  heroId: null,
+  huntTapHero: null,
   party: createPartyState(),
   completed: readCompleted(),
   phase: "planning",
@@ -483,7 +506,94 @@ const session = {
 };
 let designerController = null;
 
+// Convoy and hunt are the two multi-route modes. Wherever the two behave the same —
+// per-route budgets, saved drafts, chip strips, board rebuilds — ask this instead of
+// naming convoy, so the two never drift apart by accident.
+function isSquadMode(level = session.level) {
+  return level?.mode === "convoy" || level?.mode === "hunt";
+}
+
+// Workshop playtests carry no pack id, so hunt levels have to be recognised from data.
+function levelUsesHunt(level = session.level) {
+  return level?.mode === "hunt";
+}
+
+function huntHeroes(level = session.level) {
+  return level?.heroes ?? [];
+}
+
+function huntHero(heroId) {
+  return huntHeroes().find((hero) => hero.id === heroId) ?? null;
+}
+
+function huntHeroName(heroId) {
+  return huntHero(heroId)?.name ?? heroId ?? "";
+}
+
+function huntShortName(heroId) {
+  return huntHeroName(heroId).split(" ")[0] ?? heroId ?? "";
+}
+
+function huntCampAt(position) {
+  return (session.level.camps ?? []).find((camp) => samePosition(camp, position)) ?? null;
+}
+
+function huntHeroAtCamp(position) {
+  for (const [heroId, camp] of session.assignments) {
+    if (samePosition(camp, position)) return heroId;
+  }
+  return null;
+}
+
+function nextUnpostedHeroId() {
+  return huntHeroes().find((hero) => !session.assignments.has(hero.id))?.id ?? null;
+}
+
+// Every posted hunter contributes a route: the selected hunter's live path, an unselected
+// hunter's saved draft, or — for a hunter who has drawn nothing yet — their camp alone.
+function huntPlanPaths() {
+  const paths = new Map();
+  session.order.forEach((heroId) => {
+    const camp = session.assignments.get(heroId);
+    if (!camp) return;
+    const drawn = heroId === session.heroId ? session.path : session.drafts.get(heroId)?.path ?? [];
+    paths.set(heroId, drawn.length ? drawn.map((position) => ({ ...position })) : [{ ...camp }]);
+  });
+  return paths;
+}
+
+// One engine call is the single source of truth for the board overlays, the meters and
+// Solve, so none of them can disagree about which quarry the plan actually fells.
+function huntPlanContext() {
+  return heroPlanContext(session.level, {
+    order: [...session.order],
+    assignment: new Map(session.assignments),
+    paths: huntPlanPaths(),
+  });
+}
+
+function huntEntryFor(heroId) {
+  return huntPlanContext().entries.find((entry) => entry.heroId === heroId) ?? null;
+}
+
+// The world snapshot the given hunter draws against: what earlier hunters already felled
+// and which squares they or later camps are holding.
+function huntSnapshotFor(heroId) {
+  return huntEntryFor(heroId)?.options?.hunt ?? { deadEnemies: new Set(), occupied: new Set() };
+}
+
+// Candidate steps are judged by the engine, so the same options reach tracePath from
+// planning, rewinding and previewing alike.
+function currentTraceOptions() {
+  const commander = currentCommander();
+  if (session.level.mode !== "hunt") return { commander };
+  return { commander, hunt: huntSnapshotFor(session.heroId) };
+}
+
 function currentCommander() {
+  if (session.level.mode === "hunt") {
+    return huntCommander(session.level, session.heroId, session.assignments.get(session.heroId) ?? null);
+  }
   return session.level.mode === "convoy" ? session.level.commanders[session.commanderIndex] : null;
 }
 
@@ -507,6 +617,9 @@ function cachedSolution() {
 }
 
 function commanderById(commanderId) {
+  if (session.level.mode === "hunt") {
+    return huntCommander(session.level, commanderId, session.assignments.get(commanderId) ?? null);
+  }
   return session.level.mode === "convoy"
     ? session.level.commanders.find((commander) => commander.id === commanderId) ?? null
     : null;
@@ -532,6 +645,17 @@ function plannedRouteSpecs(includeActive = true) {
 }
 
 function compilePlannedRoutes() {
+  if (session.level.mode === "hunt") {
+    // Each hunter is traced against the world the hunters before it left behind, so the
+    // compiled list is already in execution order with its own hunt snapshot attached.
+    return huntPlanContext().entries.map((entry) => ({
+      commanderId: entry.heroId,
+      path: entry.path.map((position) => ({ ...position })),
+      commander: entry.commander,
+      options: entry.options,
+      trace: entry.trace ?? tracePath(session.level, entry.path, entry.options),
+    }));
+  }
   return plannedRouteSpecs().map((route) => {
     const commander = commanderById(route.commanderId);
     return {
@@ -543,7 +667,11 @@ function compilePlannedRoutes() {
 }
 
 function planSolved() {
-  if (session.phase !== "planning" || !session.path.length) return false;
+  if (session.phase !== "planning") return false;
+  // A hunt is won by the board, not by a banner: three hunters on distinct camps, every
+  // route legal in order, and nothing left alive. The engine decides all three.
+  if (session.level.mode === "hunt") return huntPlanContext().solved;
+  if (!session.path.length) return false;
   const compiled = compilePlannedRoutes();
   if (session.level.mode !== "convoy") return compiled.length === 1 && compiled[0].trace.ok && compiled[0].trace.won;
   if (compiled.length !== session.level.commanders.length || compiled.some((route) => !route.trace.ok || !route.trace.won)) return false;
@@ -606,6 +734,30 @@ function executedBeaconSet() {
   return beacons;
 }
 
+// The whole plan's tally of felled quarry. This is what the skull marks show — the outcome
+// of the plan as a whole — and it is deliberately NOT what the hazard overlays read.
+function huntDeadEnemySet() {
+  if (session.phase === "planning") return huntPlanContext().deadEnemies;
+  const dead = new Set(session.execution?.deadEnemies ?? []);
+  session.party.kills?.forEach((id) => dead.add(id));
+  return dead;
+}
+
+// The world the given hunter actually walks into: the kills of strictly earlier hunters
+// plus whatever this one has felled so far. The engine judges each hunter against exactly
+// this set, so a later hunter's kill must never reach back and cool a lane that is still
+// burning for the hunter being drawn right now.
+function huntActiveDeadEnemySet(heroId) {
+  if (session.phase !== "planning") return huntDeadEnemySet();
+  const dead = new Set(huntSnapshotFor(heroId).deadEnemies);
+  session.party.kills?.forEach((id) => dead.add(id));
+  return dead;
+}
+
+function huntCleared(deadEnemies) {
+  return allEnemiesDead(session.level, deadEnemies);
+}
+
 function persistCompleted() {
   try { localStorage.setItem(STORAGE_KEYS.complete, JSON.stringify([...session.completed])); } catch { /* Storage is optional. */ }
 }
@@ -637,16 +789,21 @@ function renderBoard() {
   dom.routeLayer.setAttribute("viewBox", `0 0 ${level.width} ${level.height}`);
   dom.routeLayer.setAttribute("preserveAspectRatio", "none");
 
+  // The authored facing lives on level.enemies, not on the tile code, so the renderer has to
+  // be told which way each body is looking — otherwise every arrow reads "Looking north".
+  const facingByKey = new Map((level.enemies ?? []).map((enemy) => [keyOf(enemy), enemy.facing]));
+
   level.rows.forEach((row, r) => {
     row.forEach((tileCode, c) => {
       const def = TILE_DEFS[tileCode];
       const cell = document.createElement("div");
-      cell.className = `cell cell--${def.type}`;
+      cell.className = `cell cell--${cellModifier(def.type)}`;
       cell.dataset.r = String(r);
       cell.dataset.c = String(c);
       cell.dataset.variation = String((r * 13 + c * 5 + level.id + session.packIndex) % 2);
       cell.dataset.key = `${r},${c}`;
       if (def.type === "goblin") cell.dataset.enemyTier = String(def.cost);
+      if (def.type === "huntEnemy") cell.dataset.enemyType = def.enemy;
       if (level.mode === "convoy" && def.commander) {
         cell.classList.toggle("is-active-commander", def.commander === commanderDisplay.activeId);
         cell.classList.toggle("is-locked-commander", commanderDisplay.completed.has(def.commander));
@@ -654,7 +811,7 @@ function renderBoard() {
       }
       cell.setAttribute("role", "gridcell");
       cell.setAttribute("aria-label", `${def.label}, row ${r + 1}, column ${c + 1}`);
-      renderTileContents(cell, tileCode, r, c);
+      renderTileContents(cell, tileCode, r, c, { facing: facingByKey.get(`${r},${c}`) ?? "" });
       dom.board.append(cell);
     });
   });
@@ -763,9 +920,17 @@ function grandManeuverLegend(disclosure) {
 
 function renderRules() {
   const formationRules = session.pack.id === "formation-muster" || levelUsesFormation();
+  const huntRules = session.pack.id === "hunters-moon" || levelUsesHunt();
   const maneuverDisclosure = grandManeuverDisclosure();
   const maneuverRules = grandManeuverRules(maneuverDisclosure);
-  const rules = formationRules
+  const rules = huntRules
+    ? [
+        ["Post the party in order", "Tap a camp to post the selected hunter. The badge is the order they will move in."],
+        ["One route each", "Every hunter keeps their own trail; trails may cross, but nobody may stand where a hunter is resting."],
+        ["Strike on contact", `${huntShortName("warrior")} may strike any side, ${huntShortName("rogue")} only from behind, and ${huntShortName("mage")} never at arm's length.`],
+        ["Leave nothing alive", "There is no banner — the hunt ends when the last of the quarry is down."],
+      ]
+    : formationRules
     ? [
         ["Plan one clean route", "Move orthogonally, rewind freely, and review the complete trail before execution."],
         ["Match the formation", "A numbered checkpoint admits exactly that many ready soldiers — no more and no fewer."],
@@ -803,7 +968,9 @@ function renderRules() {
         ];
   dom.rulesList.innerHTML = rules.map(([title, copy]) => `<li><b>${title}</b><span>${copy}</span></li>`).join("");
 
-  const legend = formationRules
+  const legend = huntRules
+    ? [["camp", "Camp"], ["hunt-enemy", "Quarry"], ["threat", "Guarded ground"], ["flame", "Dragon flame"]]
+    : formationRules
     ? [["formation", "Exact formation"], ["recruit", "Recruit"], ["danger", "Danger"]]
     : maneuverRules.length
     ? grandManeuverLegend(maneuverDisclosure)
@@ -848,6 +1015,15 @@ function svgNode(name, className) {
 }
 
 function allVisibleRoutes() {
+  // A hunt never secures routes into session.routes — every trail is a draft until Solve —
+  // so playback has to read the compiled routes the execution is actually walking.
+  if (session.level.mode === "hunt" && executionStateActive()) {
+    return session.execution.routes.map((route, index) => ({
+      path: route.path,
+      className: route.commanderId ?? session.pack.accent,
+      locked: session.phase === "won" || index < session.execution.routeIndex,
+    }));
+  }
   const visible = session.routes.map((route, index) => ({
     path: route.path,
     className: route.commanderId ?? `route-${index}`,
@@ -872,6 +1048,58 @@ function allVisibleRoutes() {
     });
   }
   return visible;
+}
+
+// Camps, facing arrows, planned skulls, the active hunter's threat tint and the live flame
+// lanes. Everything here is derived, so the board can never claim a kill the engine did not
+// grant or keep a flame burning after its dragon is down.
+function renderHuntOverlays(planning) {
+  const dead = huntDeadEnemySet();
+  const heroId = planning ? session.heroId : session.execution?.commanderId ?? null;
+  const showThreat = planning ? Boolean(currentCommander()) : Boolean(heroId);
+  // One engine call for the geometry, read against the active hunter's own world.
+  const hazards = huntHazards(session.level, huntActiveDeadEnemySet(heroId), heroId);
+  const threat = hazards.lethal;
+  const flames = hazards.flame;
+
+  (session.level.enemies ?? []).forEach((enemy) => {
+    const cell = cellFor(enemy);
+    if (!cell) return;
+    // The skull marks are the plan's outcome, so they alone read the whole-plan tally.
+    cell.classList.toggle("is-planned-hunt-kill", planning && dead.has(enemy.id));
+    cell.classList.toggle("is-felled-quarry", !planning && dead.has(enemy.id));
+  });
+
+  (session.level.camps ?? []).forEach((camp) => {
+    const cell = cellFor(camp);
+    if (!cell) return;
+    const occupant = huntHeroAtCamp(camp);
+    const slot = occupant ? session.order.indexOf(occupant) : -1;
+    // The status copy calls the selected hunter's camp "the glowing tent", so it glows. A
+    // posted hunter who has drawn nothing yet still owes the plan a trail — a weaker state
+    // marks that camp as unfinished business rather than done.
+    const drawn = occupant === session.heroId ? session.path : session.drafts.get(occupant)?.path ?? [];
+    cell.classList.toggle("is-active-commander", planning && occupant === session.heroId);
+    cell.classList.toggle("has-draft-commander", planning && Boolean(occupant) && drawn.length <= 1);
+    let badge = cell.querySelector(".hunt-order-badge");
+    if (slot < 0) {
+      badge?.remove();
+      delete cell.dataset.hero;
+      return;
+    }
+    if (!badge) {
+      badge = document.createElement("i");
+      badge.className = "hunt-order-badge";
+      cell.append(badge);
+    }
+    badge.textContent = String(slot + 1);
+    cell.dataset.hero = occupant;
+  });
+
+  dom.board.querySelectorAll(".cell").forEach((cell) => {
+    cell.classList.toggle("cell--flame", flames.has(cell.dataset.key));
+    cell.classList.toggle("cell--threat", showThreat && threat.has(cell.dataset.key));
+  });
 }
 
 function renderObjectiveTiles() {
@@ -899,6 +1127,7 @@ function renderObjectiveTiles() {
       cell?.classList.toggle("is-lit", !planning && lit.has(keyOf(beacon)));
     });
   }
+  if (session.level.mode === "hunt") renderHuntOverlays(planning);
 
   const plannedKeys = new Set(allVisibleRoutes().flatMap((route) => route.path.map(keyOf)));
   const plannedHeadKey = planning && session.path.length ? keyOf(session.path.at(-1)) : null;
@@ -1001,6 +1230,13 @@ function renderParty(animate = false) {
   const commander = commanderById(commanderId) ?? currentCommander();
   const position = execution?.position ?? commander?.start ?? session.level.start;
   const state = execution ? session.party : createPartyState(commander?.initial);
+  // An unposted hunter has nowhere to stand, so the token must not squat on camp one.
+  const stranded = session.level.mode === "hunt" && !execution && !commander;
+  dom.party.style.visibility = stranded ? "hidden" : "";
+  if (stranded) {
+    dom.party.replaceChildren();
+    return;
+  }
   positionToken(dom.party, position);
   fillPartyToken(dom.party, state, commanderId);
   if (animate) {
@@ -1090,6 +1326,19 @@ function renderRouteMeters() {
     dom.objectiveCount.textContent = `${delivered} / ${required}`;
     return;
   }
+  if (session.level.mode === "hunt") {
+    const commander = currentCommander();
+    const context = huntPlanContext();
+    const manaLimit = huntHero(session.heroId)?.initial?.mana ?? 0;
+    const mana = manaLimit ? ` · ✦${session.party.mana}/${manaLimit}` : "";
+    dom.movementLabel.textContent = commander ? `${huntShortName(session.heroId).toUpperCase()} · MOVE` : "POST A HUNTER";
+    dom.movementCount.textContent = commander
+      ? `${session.party.moves} / ${movementLimit(session.level, commander, session.party)}${mana}`
+      : "—";
+    dom.objectiveLabel.textContent = "HUNTERS · QUARRY";
+    dom.objectiveCount.textContent = `${session.order.length}/${huntHeroes().length} · ${context.deadEnemies.size}/${(session.level.enemies ?? []).length}`;
+    return;
+  }
   if (session.level.mode === "convoy") {
     const commander = currentCommander();
     const lit = visibleBeaconSet().size;
@@ -1106,7 +1355,61 @@ function renderRouteMeters() {
   dom.objectiveCount.textContent = `${session.party.soldiers + session.party.mages + session.party.builders + session.party.healers}`;
 }
 
+// Hunt chips carry the whole plan at a glance: who is posted, in what order, how far they
+// walked, how much mana is left, and whether an earlier edit broke a later route.
+function renderHuntHeroChips() {
+  dom.commanderOrder.hidden = false;
+  dom.commanderOrder.replaceChildren();
+  const entries = new Map(huntPlanContext().entries.map((entry) => [entry.heroId, entry]));
+  const executing = session.phase === "executing";
+  const executingId = executing ? session.execution?.commanderId ?? null : null;
+  huntHeroes().forEach((hero) => {
+    const posted = session.assignments.has(hero.id);
+    const slot = session.order.indexOf(hero.id);
+    const active = executing ? hero.id === executingId : session.heroId === hero.id;
+    const selected = hero.id === session.heroId;
+    const draft = session.drafts.get(hero.id) ?? null;
+    const state = selected ? session.party : draft?.state ?? null;
+    const steps = Math.max(0, (selected ? session.path.length : draft?.path.length ?? 0) - 1);
+    const entry = entries.get(hero.id) ?? null;
+    const broken = Boolean(posted && entry?.trace && !entry.trace.ok);
+    const manaLimit = hero.initial?.mana ?? 0;
+    const manaLeft = state?.mana ?? manaLimit;
+
+    const detail = !posted
+      ? "no camp yet"
+      : broken
+        ? "route broken · redraw"
+        : `${steps}/${hero.maxMoves} move${hero.maxMoves === 1 ? "" : "s"}`;
+    const stateLabel = !posted
+      ? "not posted"
+      : broken
+        ? `posted ${slot + 1}, route broken`
+        : `posted ${slot + 1}, ${steps} of ${hero.maxMoves} moves drawn`;
+
+    const pips = manaLimit
+      ? `<span class="hunt-mana-pips">${Array.from({ length: manaLimit }, (_value, index) => `<i${index < manaLeft ? "" : ' class="is-spent"'}>✦</i>`).join("")}</span>`
+      : "";
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = `commander-chip commander-chip--${hero.id}`;
+    if (active) chip.classList.add("is-active");
+    if (posted && !broken) chip.classList.add("is-complete");
+    if (posted && broken) chip.classList.add("has-draft");
+    chip.disabled = session.phase !== "planning";
+    chip.setAttribute("aria-pressed", String(selected));
+    chip.setAttribute("aria-label", `${hero.name}, ${stateLabel}`);
+    chip.innerHTML = `<img src="${ASSETS[hero.id]}" alt=""><span><b>${huntShortName(hero.id)}</b><small>${detail}</small>${pips}</span><i>${slot >= 0 ? slot + 1 : "·"}</i>`;
+    chip.addEventListener("click", () => selectHuntHero(hero.id));
+    dom.commanderOrder.append(chip);
+  });
+}
+
 function renderCommanderOrder() {
+  if (session.level.mode === "hunt") {
+    renderHuntHeroChips();
+    return;
+  }
   const convoy = session.level.mode === "convoy";
   dom.commanderOrder.hidden = !convoy;
   if (!convoy) {
@@ -1150,10 +1453,30 @@ function renderCommanderOrder() {
   });
 }
 
+// The hunt has no banner to aim at, so the status line has to name the next decision:
+// post someone, draw, or explain what is still standing.
+function huntStatus() {
+  const context = huntPlanContext();
+  if (session.order.length < huntHeroes().length) {
+    const waiting = nextUnpostedHeroId();
+    return `<b>POST ${huntShortName(waiting).toUpperCase()}</b> · tap a free camp; the badge shows the order they move in`;
+  }
+  const broken = context.entries.find((entry) => entry.trace && !entry.trace.ok);
+  if (broken) {
+    return `<b>${huntShortName(broken.heroId).toUpperCase()}'S ROUTE BROKE</b> ${broken.trace.reason ?? "Redraw it from their camp."}`;
+  }
+  if (!huntCleared(context.deadEnemies)) {
+    const left = (session.level.enemies ?? []).length - context.deadEnemies.size;
+    return `<b>${left} STILL BREATHING</b> Keep drawing · ${session.party.moves} movement used`;
+  }
+  return "<b>THE MOOR IS CLEAR</b> Review the three trails, or solve the puzzle.";
+}
+
 function defaultStatus() {
   if (session.phase === "executing") return `<b>SOLUTION IN MOTION</b> ${session.execution?.eventLabel ?? "Your planned route is playing back."}`;
   if (session.phase === "won") return "<b>ROUTE SECURED!</b> Your company reached the royal banner.";
   if (planSolved()) return "<b>WINNING PLAN READY!</b> Review the route, rewind if needed, or solve the puzzle.";
+  if (session.level.mode === "hunt") return huntStatus();
   if (!session.path.length) {
     if (session.level.mode === "convoy") return `<b>${currentCommander()?.name.toUpperCase()}</b> · draw here, or choose any available commander`;
     return "<b>PRESS + DRAG</b> from your commander";
@@ -1201,6 +1524,10 @@ function eventStatus(event) {
       const count = event.targets.length;
       return `<b>${count > 1 ? "DOUBLE DELIVERY!" : "MEAL DELIVERED!"}</b> A hunger badge fills beside the trail.`;
     }
+    case "huntKill": return event.method === "backstab"
+      ? `<b>BACKSTAB!</b> The ${event.enemyType} never saw ${huntShortName("rogue")} coming.`
+      : `<b>${String(event.enemyType).toUpperCase()} FELLED!</b> The hunter strikes it down where it stood.`;
+    case "bolt": return `<b>ARCANE BOLT!</b> The ${event.enemyType} drops down the lane.`;
     case "beacon": return "<b>BEACON LIT!</b> Its signal counts across every commander route.";
     case "mud": return "<b>DEEP MUD</b> This square costs two movement.";
     case "supply": return `<b>SUPPLIES FOUND!</b> The active commander gains ${event.bonusMoves} movement.`;
@@ -1231,6 +1558,10 @@ function planningEventStatus(events = []) {
     case "gate": return `<b>PLANNED GATE</b> The ${event.channel} seal is available before this step.`;
     case "formation": return `<b>PLANNED INSPECTION</b> The preview line has exactly ${event.required} ready soldier${event.required === 1 ? "" : "s"}.`;
     case "delivery": return `<b>PLANNED DELIVERY</b> ${event.targets.length} hunger badge${event.targets.length === 1 ? " fills" : "s fill"} beside this tile.`;
+    case "huntKill": return event.method === "backstab"
+      ? "<b>PLANNED BACKSTAB</b> This approach comes from behind, so the strike lands."
+      : `<b>PLANNED STRIKE</b> The ${event.enemyType} falls when this hunter arrives.`;
+    case "bolt": return `<b>PLANNED BOLT</b> One mana drops the ${event.enemyType} down this lane.`;
     case "beacon": return "<b>PLANNED BEACON</b> This signal is included in the route set.";
     case "supply": return `<b>PLANNED SUPPLIES</b> The movement budget grows by ${event.bonusMoves}.`;
     default: return null;
@@ -1249,6 +1580,8 @@ function audioCue(event) {
   if (event.type === "switch") return "switch";
   if (event.type === "gate") return "gate";
   if (event.type === "formation") return "formation";
+  if (event.type === "huntKill") return "huntKill";
+  if (event.type === "bolt") return "bolt";
   if (["stride", "pivot", "aegis"].includes(event.type)) return event.type;
   if (["delivery", "beacon", "mud", "supply", "current"].includes(event.type)) return event.type;
   return "step";
@@ -1309,7 +1642,7 @@ function recomputeParty() {
     session.party = createPartyState(currentCommander()?.initial);
     return;
   }
-  const result = simulatePath(session.level, session.path, { commander: currentCommander() });
+  const result = simulatePath(session.level, session.path, currentTraceOptions());
   session.party = result.state;
 }
 
@@ -1392,6 +1725,9 @@ function rewindPathTo(position, withSound = true) {
 }
 
 function foreignRouteAt(position) {
+  // Hunters share the moor: trails may cross freely, and the only squares another hunter
+  // truly holds are decided by the engine's occupancy set, not by drawn tiles.
+  if (session.level.mode === "hunt") return false;
   const positionKey = keyOf(position);
   if (session.routes.some((route) => route.path.some((step) => keyOf(step) === positionKey))) return true;
   return [...session.drafts.values()].some((draft) => draft.path.some((step) => keyOf(step) === positionKey));
@@ -1404,17 +1740,99 @@ function reservedCommanderTile(position) {
 }
 
 function saveActiveDraft() {
-  if (session.level.mode !== "convoy") return;
-  const commander = currentCommander();
-  if (!commander || completedCommanderIds().has(commander.id)) return;
+  if (!isSquadMode()) return;
+  // Hunt routes never graduate to session.routes — the draft map is the plan — so the key
+  // is the hunter, and an empty trail drops the draft instead of storing a stub.
+  const draftId = session.level.mode === "hunt" ? session.heroId : currentCommander()?.id ?? null;
+  if (!draftId) return;
+  if (session.level.mode === "hunt" && !session.assignments.has(draftId)) return;
+  if (session.level.mode !== "hunt" && completedCommanderIds().has(draftId)) return;
   if (!session.path.length) {
-    session.drafts.delete(commander.id);
+    session.drafts.delete(draftId);
     return;
   }
-  session.drafts.set(commander.id, {
+  session.drafts.set(draftId, {
     path: session.path.map((position) => ({ ...position })),
     state: createPartyState(session.party),
   });
+}
+
+function releaseActivePointer() {
+  if (session.pointerId === null) return;
+  try { dom.boardFrame.releasePointerCapture?.(session.pointerId); } catch { /* Pointer capture may already be gone. */ }
+}
+
+// Switching hunters is the convoy move exactly: bank the current trail, promote the target's
+// saved draft back into the live path, and never quietly discard player work.
+function selectHuntHero(heroId, options = {}) {
+  if (session.level.mode !== "hunt" || session.phase !== "planning") return false;
+  if (!huntHero(heroId)) return false;
+  if (heroId === session.heroId) return true;
+
+  if (options.saveCurrent !== false) saveActiveDraft();
+  releaseActivePointer();
+  session.drawing = false;
+  session.pointerId = null;
+  session.huntTapHero = null;
+  session.heroId = heroId;
+  const draft = session.drafts.get(heroId);
+  session.drafts.delete(heroId);
+  session.path = draft?.path.map((position) => ({ ...position })) ?? [];
+  session.party = createPartyState(draft ? draft.state : currentCommander()?.initial);
+  session.mode = session.path.length ? "paused" : "idle";
+  clearBlockedFeedback();
+  renderBoard();
+  refreshSession();
+  if (!options.silent) {
+    const posted = session.assignments.has(heroId);
+    setStatus(`<b>${huntShortName(heroId).toUpperCase()} SELECTED</b> ${posted
+      ? (draft ? "Continue the saved trail from its glowing head." : "Draw from their camp.")
+      : "Tap a free camp to post them."}`, "success", 1600);
+  }
+  return true;
+}
+
+// Posting is the only commit step a hunt has, and it doubles as a move: an already-posted
+// hunter keeps their slot in the order and gives up their old trail.
+function postHuntHero(heroId, camp) {
+  if (heroId !== session.heroId) selectHuntHero(heroId, { silent: true });
+  else saveActiveDraft();
+  const moved = session.assignments.has(heroId);
+  session.assignments.set(heroId, { ...camp });
+  if (!session.order.includes(heroId)) session.order.push(heroId);
+  session.drafts.delete(heroId);
+  releaseActivePointer();
+  session.path = [];
+  session.party = createPartyState(currentCommander()?.initial);
+  session.mode = "idle";
+  session.drawing = false;
+  session.pointerId = null;
+  session.huntTapHero = null;
+  clearBlockedFeedback();
+  renderBoard();
+  refreshSession();
+  const slot = session.order.indexOf(heroId) + 1;
+  setStatus(`<b>${huntShortName(heroId).toUpperCase()} POSTED ${slot}${slot === 1 ? "ST" : slot === 2 ? "ND" : "RD"}</b> ${moved
+    ? "Their old trail was cleared with the move."
+    : "Press and drag from the camp to draw their route."}`, "success", 2000);
+}
+
+function unpostHuntHero(heroId) {
+  if (!session.assignments.has(heroId)) return;
+  session.assignments.delete(heroId);
+  session.order = session.order.filter((candidate) => candidate !== heroId);
+  session.drafts.delete(heroId);
+  if (session.heroId === heroId) {
+    session.path = [];
+    session.party = createPartyState();
+    session.mode = "idle";
+  }
+  session.drawing = false;
+  session.huntTapHero = null;
+  clearBlockedFeedback();
+  renderBoard();
+  refreshSession();
+  setStatus(`<b>${huntShortName(heroId).toUpperCase()} STOOD DOWN</b> The camp is free again and the order renumbered.`, "normal", 2000);
 }
 
 function selectCommander(index, options = {}) {
@@ -1491,12 +1909,13 @@ function attemptAdjacent(position) {
   }
 
   const candidatePath = [...session.path, position];
-  const transition = tracePath(session.level, candidatePath, { commander: currentCommander() });
+  const transition = tracePath(session.level, candidatePath, currentTraceOptions());
   if (!transition.ok) {
     flashBlocked(position, transition.reason);
     return false;
   }
 
+  // A hunt level has no goal tile, so activeGoal() is null and samePosition refuses it.
   const isActiveGoal = samePosition(position, activeGoal());
   const isFinalCommander = session.level.mode === "convoy" && session.routes.length === session.level.commanders.length - 1;
   if (isActiveGoal && isFinalCommander) {
@@ -1561,13 +1980,53 @@ function attemptToward(target) {
 
 function beginPath() {
   if (session.path.length || session.phase !== "planning") return;
+  // An unposted hunter has no camp, so there is nothing to begin from yet.
+  if (session.level.mode === "hunt" && !currentCommander()) return;
   session.path = [{ ...activeStart() }];
-  const startTrace = tracePath(session.level, session.path, { commander: currentCommander() });
+  const startTrace = tracePath(session.level, session.path, currentTraceOptions());
   session.party = startTrace.state;
   session.mode = "drawing";
   clearBlockedFeedback();
   audio.play("draw", 0);
   refreshSession();
+}
+
+// Camp taps are the hunt's whole assignment UI. Returns false when the press was consumed
+// here, true when it should fall through to ordinary route drawing.
+function handleHuntPointerDown(position) {
+  const camp = huntCampAt(position);
+  const occupant = camp ? huntHeroAtCamp(position) : null;
+
+  if (camp && occupant && occupant !== session.heroId) {
+    selectHuntHero(occupant);
+    return false;
+  }
+  if (camp && !occupant) {
+    // A free camp always acts on the hunter you actually selected. If they are already
+    // posted this is a MOVE — postHuntHero relocates them and keeps their slot in the order,
+    // so a player never has to stand someone down (and lose their trail) to reposition them.
+    const target = session.heroId;
+    if (!target) return false;
+    const relocating = session.assignments.has(target);
+    postHuntHero(target, camp);
+    // Posting someone new advances the selection, so the whole party can still be posted by
+    // tapping camps in a row. Moving an already-posted hunter leaves them selected.
+    if (!relocating) {
+      const waiting = nextUnpostedHeroId();
+      if (waiting) selectHuntHero(waiting, { silent: true });
+    }
+    return false;
+  }
+
+  // Pressing your own camp begins a trail; releasing without having drawn one stands the
+  // hunter back down, which is what makes the posting a toggle.
+  session.huntTapHero = camp && occupant === session.heroId && session.path.length <= 1 ? occupant : null;
+
+  if (!session.assignments.has(session.heroId)) {
+    flashBlocked(position, `Post ${huntShortName(session.heroId)} on a free camp before drawing their route.`);
+    return false;
+  }
+  return true;
 }
 
 function handlePointerDown(event) {
@@ -1577,6 +2036,11 @@ function handlePointerDown(event) {
   const cell = event.target.closest(".cell");
   const position = positionFromCell(cell);
   if (!position) return;
+
+  if (session.level.mode === "hunt" && !handleHuntPointerDown(position)) {
+    event.preventDefault();
+    return;
+  }
 
   const commanderStartIndex = commanderStartIndexAt(position);
   if (commanderStartIndex >= 0 && commanderStartIndex !== session.commanderIndex) {
@@ -1593,7 +2057,11 @@ function handlePointerDown(event) {
 
   if (!session.path.length) {
     if (!samePosition(position, activeStart())) {
-      flashBlocked(position, session.level.mode === "convoy" ? `Begin on ${currentCommander().name}, the glowing active commander.` : "Begin on the commander.");
+      flashBlocked(position, session.level.mode === "hunt"
+        ? `Begin on ${huntShortName(session.heroId)}'s camp, the glowing tent.`
+        : session.level.mode === "convoy"
+          ? `Begin on ${currentCommander().name}, the glowing active commander.`
+          : "Begin on the commander.");
       return;
     }
     beginPath();
@@ -1629,10 +2097,16 @@ function handlePointerMove(event) {
 
 function endPointer(event) {
   if (event.pointerId !== session.pointerId) return;
+  const tappedHero = session.huntTapHero;
+  session.huntTapHero = null;
   session.drawing = false;
   session.pointerId = null;
   clearBlockedFeedback();
   if (session.mode === "drawing") session.mode = "paused";
+  // A press that never grew into a trail was a tap on the hunter's own camp: stand them down.
+  if (tappedHero && session.level.mode === "hunt" && session.phase === "planning" && session.path.length <= 1) {
+    unpostHuntHero(tappedHero);
+  }
 }
 
 function handleKeyboard(event) {
@@ -1692,6 +2166,8 @@ function executionEventLabel(event) {
   if (event.type === "stride") return "STRIDE DEPARTURE";
   if (event.type === "pivot") return "PIVOT DEPARTURE";
   if (event.type === "aegis") return "AEGIS PICKUP";
+  if (event.type === "huntKill") return event.method === "backstab" ? "BACKSTAB" : "HUNTER'S STRIKE";
+  if (event.type === "bolt") return "ARCANE BOLT";
   if (event.type === "goal" || event.type === "commanderGoal") return "STANDARD SECURED";
   return event.type.toUpperCase();
 }
@@ -1725,6 +2201,13 @@ function spawnExecutionFx(kind, position, destination = position) {
   effect.style.setProperty("--fx-dy", `${(destination.r - position.r) * cellHeight}px`);
   dom.executionFx.append(effect);
   return effect;
+}
+
+// Death sounds are shared with the campaign packs, so no new audio entry is needed.
+function huntDeathCue(enemyType) {
+  if (enemyType === "orc") return "orcDeath";
+  if (enemyType === "dragon") return "dragonDeath";
+  return "goblinDeath";
 }
 
 function clearExecutionEvent(cell, cellClass, effect) {
@@ -1824,6 +2307,37 @@ async function presentExecutionEvent(event, position, runId, eventPause, fromPos
       pause = Math.max(pause, 460);
       break;
     }
+    // A hunter's strike mirrors the goblin two-beat: windup, then the impact that lands.
+    case "huntKill": {
+      pulseClass(dom.party, "is-attacking");
+      audio.play("soldierAttack", session.execution.completedSteps);
+      if (!await executionDelay(70, runId)) return false;
+      audio.play("huntKill", session.execution.completedSteps);
+      cellClass = "is-event-hunt-kill";
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx("hunt-strike", position);
+      audio.play(huntDeathCue(event.enemyType), session.execution.completedSteps);
+      session.execution.resolved.add(keyOf(position));
+      pause = Math.max(pause, event.method === "backstab" ? 380 : 340);
+      break;
+    }
+    // The bolt travels, so it mirrors the fireball: launch from the mage, land on the quarry.
+    case "bolt": {
+      pulseClass(dom.party, "is-casting");
+      const origin = event.from ?? fromPosition;
+      const projectile = spawnExecutionFx("hunt-bolt", origin, position);
+      audio.play("bolt", session.execution.completedSteps);
+      if (!await executionDelay(240, runId)) return false;
+      projectile?.remove();
+      cellClass = "is-event-hunt-kill";
+      cell?.classList.add(cellClass);
+      effect = spawnExecutionFx("hunt-strike", position);
+      audio.play(huntDeathCue(event.enemyType), session.execution.completedSteps);
+      // No route ever walks the victim's tile, so it must not be marked travelled — the
+      // felled-quarry state consumes the sprite without painting a gold route square.
+      pause = Math.max(pause, 420);
+      break;
+    }
     case "river":
       cellClass = "is-event-bridge-build";
       cell?.classList.add(cellClass);
@@ -1881,7 +2395,18 @@ function resolveExecutionArrival(step) {
 async function executePlan() {
   if (!planSolved()) return;
   const routes = compilePlannedRoutes();
-  if (!routes.length || routes.some((route) => !route.trace.ok || !route.trace.won)) {
+  // A hunt has no banner to arrive at, so trace.won (which only reports "nothing pending")
+  // is not its win condition: a route that ends on a stride or pivot marker would light
+  // Solve and then be refused here. The hunt's gate is exactly what the engine grades —
+  // distinct camps, every trace legal in order, and nothing left alive.
+  const huntPlan = session.level.mode === "hunt" ? huntPlanContext() : null;
+  const gateFailed = huntPlan
+    ? !routes.length
+      || !huntPlan.distinctCamps
+      || routes.some((route) => !route.trace.ok)
+      || !huntCleared(huntPlan.deadEnemies)
+    : !routes.length || routes.some((route) => !route.trace.ok || !route.trace.won);
+  if (gateFailed) {
     flashBlocked(session.path.at(-1) ?? activeStart(), "The plan changed before execution. Review the route and try again.");
     return;
   }
@@ -1908,6 +2433,9 @@ async function executePlan() {
     position: { ...firstRoute.trace.steps[0].position },
     resolved: new Set(),
     beacons: new Set(),
+    // The live tally of felled quarry, so mid-replay overlays read the same world the
+    // hunter currently walking through it does.
+    deadEnemies: new Set(),
     completedSteps: 0,
     totalSteps,
     eventLabel: "READY!",
@@ -1989,6 +2517,7 @@ async function executePlan() {
     }
 
     route.trace.state.beacons.forEach((beacon) => session.execution.beacons.add(beacon));
+    route.trace.state.kills.forEach((enemyId) => session.execution.deadEnemies.add(enemyId));
   }
 
   if (runId !== session.executionRunId) return;
@@ -2016,7 +2545,8 @@ function finishLevel() {
   session.phase = "won";
   session.mode = "won";
   session.drawing = false;
-  if (session.level.mode === "convoy") renderBoard();
+  if (isSquadMode()) renderBoard();
+  const isHunt = session.level.mode === "hunt";
   const isPlaytest = Boolean(session.playtest);
   if (!isPlaytest) {
     session.completed.add(currentLevelKey());
@@ -2029,19 +2559,25 @@ function finishLevel() {
   audio.play("win");
   setStatus(isPlaytest
     ? "<b>PLAYTEST CLEAR!</b> This draft can be completed under the real game rules."
-    : "<b>ROUTE SECURED!</b> Your company reached the royal banner.", "success");
+    : isHunt
+      ? "<b>THE MOOR IS CLEARED!</b> Three hunters, three camps, and nothing left alive."
+      : "<b>ROUTE SECURED!</b> Your company reached the royal banner.", "success");
 
   const isPackFinale = session.levelIndex === session.pack.levels.length - 1;
   const isGameFinale = isPackFinale && session.packIndex === PACKS.length - 1;
-  dom.victoryTitle.textContent = isPlaytest ? "Playtest complete!" : isGameFinale ? "The company rises again!" : isPackFinale ? `${session.pack.shortName} complete!` : "Company assembled!";
+  dom.victoryTitle.textContent = isPlaytest ? "Playtest complete!" : isGameFinale ? "The company rises again!" : isPackFinale ? `${session.pack.shortName} complete!` : isHunt ? "The hunt is over!" : "Company assembled!";
   dom.victoryCopy.textContent = isPlaytest
     ? "The route works in play. Return to the workshop to refine, analyze, or copy it."
     : isGameFinale
     ? "The lone commander turned every hard choice into one final, unstoppable company."
     : isPackFinale
       ? `${session.pack.name} is secure. A new campaign is ready.`
-      : `${session.level.name} is secure. The next march awaits.`;
-  const totalTiles = session.routes.reduce((sum, route) => sum + route.path.length, 0) + session.path.length;
+      : isHunt
+        ? `${session.level.name} is cleared. The party breaks camp for the next moor.`
+        : `${session.level.name} is secure. The next march awaits.`;
+  const totalTiles = isHunt
+    ? (session.execution?.routes ?? []).reduce((sum, route) => sum + route.path.length, 0)
+    : session.routes.reduce((sum, route) => sum + route.path.length, 0) + session.path.length;
   dom.victorySteps.textContent = String(totalTiles);
   dom.victoryRank.textContent = session.level.difficulty >= 9 ? "★★★" : session.level.difficulty >= 6 ? "★★" : "★";
   dom.next.innerHTML = isPlaytest
@@ -2064,19 +2600,29 @@ function clearTimers() {
   session.victoryTimer = null;
 }
 
-function resetLevel() {
-  cancelExecution();
-  clearTimers();
+// Reset, level load and playtest all rebuild the same blank plan; keeping it in one place
+// is what stops a hunt's postings from surviving into the next level.
+function resetPlanState() {
   session.path = [];
   session.routes = [];
   session.drafts.clear();
   session.commanderIndex = 0;
+  session.assignments.clear();
+  session.order = [];
+  session.huntTapHero = null;
+  session.heroId = session.level.mode === "hunt" ? huntHeroes()[0]?.id ?? null : null;
   session.party = createPartyState(currentCommander()?.initial);
   session.phase = "planning";
   session.mode = "idle";
   session.drawing = false;
   session.pointerId = null;
   clearBlockedFeedback(true);
+}
+
+function resetLevel() {
+  cancelExecution();
+  clearTimers();
+  resetPlanState();
   dom.party.classList.remove("is-winning", "is-stepping");
   dom.confetti.replaceChildren();
   if (dom.victoryDialog.open) dom.victoryDialog.close();
@@ -2133,16 +2679,7 @@ function loadLevel(index) {
   const levels = session.pack.levels;
   session.levelIndex = (index + levels.length) % levels.length;
   session.level = levels[session.levelIndex];
-  session.path = [];
-  session.routes = [];
-  session.drafts.clear();
-  session.commanderIndex = 0;
-  session.party = createPartyState(currentCommander()?.initial);
-  session.phase = "planning";
-  session.mode = "idle";
-  session.drawing = false;
-  session.pointerId = null;
-  clearBlockedFeedback(true);
+  resetPlanState();
   dom.party.classList.remove("is-winning", "is-stepping");
   dom.confetti.replaceChildren();
   if (dom.victoryDialog.open) dom.victoryDialog.close();
@@ -2170,23 +2707,14 @@ function startDesignerPlaytest(level, context) {
     shortName: "Workshop",
     eyebrow: "LIVE PLAYTEST",
     description: "This browser-saved draft is running in the real game rules. Return to the workshop to keep painting.",
-    accent: levelUsesFormation(level) ? "water" : levelUsesGrandManeuver(level) ? "teal" : "gold",
+    accent: levelUsesHunt(level) ? "ember" : levelUsesFormation(level) ? "water" : levelUsesGrandManeuver(level) ? "teal" : "gold",
     levels: [level],
   };
   session.levelIndex = 0;
   session.level = level;
   cancelExecution();
   clearTimers();
-  session.path = [];
-  session.routes = [];
-  session.drafts.clear();
-  session.commanderIndex = 0;
-  session.party = createPartyState(currentCommander()?.initial);
-  session.phase = "planning";
-  session.mode = "idle";
-  session.drawing = false;
-  session.pointerId = null;
-  clearBlockedFeedback(true);
+  resetPlanState();
   dom.backToDesigner.hidden = false;
   dom.party.classList.remove("is-winning", "is-stepping");
   dom.confetti.replaceChildren();
@@ -2243,9 +2771,22 @@ function showNudge() {
   if (session.phase !== "planning") return;
   audio.ensure();
   const scoutReport = cachedSolution();
-  const solution = session.level.mode === "convoy"
-    ? scoutReport?.routes.find((route) => route.commanderId === currentCommander()?.id)?.path
-    : scoutReport;
+  // A hunt scout report keys its routes by heroId, and its advice only holds if this hunter
+  // is standing where the report expects them.
+  if (session.level.mode === "hunt") {
+    const suggested = scoutReport?.assignment?.[session.heroId] ?? null;
+    const camp = session.assignments.get(session.heroId) ?? null;
+    if (suggested && !samePosition(suggested, camp)) {
+      setStatus(`<b>SCOUT'S NUDGE</b> The report posts ${huntShortName(session.heroId)} on the highlighted camp instead.`, "normal", 2200);
+      pulseHintCell(suggested);
+      return;
+    }
+  }
+  const solution = session.level.mode === "hunt"
+    ? scoutReport?.routes.find((route) => route.heroId === session.heroId)?.path
+    : session.level.mode === "convoy"
+      ? scoutReport?.routes.find((route) => route.commanderId === currentCommander()?.id)?.path
+      : scoutReport;
   if (!solution) {
     setStatus("<b>NO SCOUT REPORT</b> This map needs a cartographer.", "error", 1800);
     return;
@@ -2265,13 +2806,16 @@ function showNudge() {
     setStatus("<b>SCOUT'S NUDGE</b> You already found the true route!", "success", 1800);
     return;
   }
+  pulseHintCell(position);
+}
+
+function pulseHintCell(position) {
   const cell = cellFor(position);
-  if (cell) {
-    cell.classList.remove("cell--hint");
-    void cell.offsetWidth;
-    cell.classList.add("cell--hint");
-    window.setTimeout(() => cell.classList.remove("cell--hint"), 2100);
-  }
+  if (!cell) return;
+  cell.classList.remove("cell--hint");
+  void cell.offsetWidth;
+  cell.classList.add("cell--hint");
+  window.setTimeout(() => cell.classList.remove("cell--hint"), 2100);
 }
 
 function updateSoundButton() {

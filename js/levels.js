@@ -4,6 +4,7 @@ import { THREE_BANNERS_RAW } from "./packs/three-banners.js";
 import { SECOND_WIND_RAW } from "./packs/second-wind.js";
 import { FORMATION_MUSTER_RAW } from "./packs/formation-muster.js";
 import { GRAND_MANEUVER_RAW } from "./packs/grand-maneuver.js";
+import { HUNTERS_MOON_RAW } from "./packs/hunters-moon.js";
 
 const RAW_LEVELS = [
   {
@@ -164,6 +165,7 @@ const THREE_BANNER_LEVELS = THREE_BANNERS_RAW.map(parseLevel);
 const SECOND_WIND_LEVELS = SECOND_WIND_RAW.map((level) => parseLevel({ ...level, mode: "campaign" }));
 const FORMATION_MUSTER_LEVELS = FORMATION_MUSTER_RAW.map((level) => parseLevel({ ...level, mode: "campaign" }));
 const GRAND_MANEUVER_LEVELS = GRAND_MANEUVER_RAW.map((level) => parseLevel({ ...level, mode: "campaign" }));
+const HUNTERS_MOON_LEVELS = HUNTERS_MOON_RAW.map(parseLevel);
 
 export const PACKS = Object.freeze([
   {
@@ -225,6 +227,16 @@ export const PACKS = Object.freeze([
     description: "Read every straight and turning drill marker, then carry one visible Aegis to the battle that needs its reserve.",
     accent: "teal",
     levels: GRAND_MANEUVER_LEVELS,
+  },
+  {
+    id: "hunters-moon",
+    number: 7,
+    name: "The Hunters' Moon",
+    shortName: "Hunters' Moon",
+    eyebrow: "PARTY HUNT",
+    description: "Post three hunters to three camps, draw a route for each, and leave nothing on the moor alive.",
+    accent: "ember",
+    levels: HUNTERS_MOON_LEVELS,
   },
 ]);
 

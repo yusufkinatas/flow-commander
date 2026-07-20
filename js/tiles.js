@@ -17,6 +17,9 @@ export const ASSETS = Object.freeze({
   dragon: "./assets/vendor/tiny-creatures/tiny-creatures/Tiles/tile_0034.png",
   mossling: "./assets/vendor/tiny-creatures/tiny-creatures/Tiles/tile_0001.png",
   emberling: "./assets/vendor/tiny-creatures/tiny-creatures/Tiles/tile_0004.png",
+  warrior: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0110.png",
+  rogue: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0112.png",
+  camp: "./assets/vendor/kenney-tiny-battle/Tiles/tile_0088.png",
   supplies: "./assets/vendor/kenney-tiny-dungeon/Tiles/tile_0004.png",
   goal: "./assets/vendor/kenney-tiny-town/Tiles/tile_0095.png",
   wilds: [
@@ -26,6 +29,20 @@ export const ASSETS = Object.freeze({
     "./assets/vendor/kenney-tiny-town/Tiles/tile_0010.png",
   ],
 });
+
+// The Hunters' Moon: one arrow glyph turned into place, so a facing never needs
+// four sprites or four classes. Authored arrows are accepted alongside the
+// engine's U/R/D/L codes because the facing grid speaks both.
+const FACING_TURNS = Object.freeze({ U: 0, R: 0.25, D: 0.5, L: 0.75, "^": 0, ">": 0.25, v: 0.5, "<": 0.75 });
+
+const FACING_NAMES = Object.freeze({ U: "north", R: "east", D: "south", L: "west" });
+
+// Tile types whose board class is not a literal echo of the type name.
+const CELL_MODIFIERS = Object.freeze({ huntEnemy: "hunt-enemy" });
+
+export function cellModifier(type) {
+  return CELL_MODIFIERS[type] ?? type;
+}
 
 export function image(src, className, alt = "") {
   const node = document.createElement("img");
@@ -46,7 +63,7 @@ export function textNode(className, value) {
 // `showParty` draws the commander onto the start tile. The board does not need it --
 // a live .party-token sits on top there -- but the workshop has no token, so without
 // this the start tile would read as an empty ring.
-export function renderTileContents(cell, tileCode, r, c, { showParty = false } = {}) {
+export function renderTileContents(cell, tileCode, r, c, { showParty = false, facing = "" } = {}) {
   const def = TILE_DEFS[tileCode];
   switch (def.type) {
     case "wilds": {
@@ -184,6 +201,23 @@ export function renderTileContents(cell, tileCode, r, c, { showParty = false } =
       cell.append(textNode("current-arrow", arrow), textNode("tile-label", "MARCH"));
       break;
     }
+    // The Hunters' Moon: camps post a hero, and every enemy publishes the way it looks.
+    case "camp":
+      cell.append(image(ASSETS.camp, "entity entity--camp"));
+      cell.append(textNode("hunt-marker", "△"));
+      cell.append(textNode("tile-label", "CAMP"));
+      break;
+    case "huntEnemy": {
+      const code = facing || cell.dataset.facing || "U";
+      const sprite = ASSETS[def.enemy] ?? ASSETS.goblin;
+      cell.append(image(sprite, `entity entity--hunt-enemy entity--${def.enemy}`));
+      const arrow = textNode("hunt-facing", "↑");
+      arrow.style.setProperty("--facing-turn", `${FACING_TURNS[code] ?? 0}turn`);
+      arrow.title = `Looking ${FACING_NAMES[code] ?? "north"}`;
+      cell.append(arrow);
+      cell.append(textNode("tile-label", def.enemy.toUpperCase()));
+      break;
+    }
     default:
       break;
   }
@@ -193,7 +227,7 @@ export function renderTileContents(cell, tileCode, r, c, { showParty = false } =
 export function renderTile(cell, tileCode, r = 0, c = 0, options = {}) {
   const def = TILE_DEFS[tileCode] ?? TILE_DEFS["."];
   cell.replaceChildren();
-  cell.className = `cell cell--${def.type}`;
+  cell.className = `cell cell--${cellModifier(def.type)}`;
   cell.dataset.code = tileCode;
   cell.dataset.variation = String(options.variation ?? (r * 13 + c * 5) % 2);
   if (def.type === "goblin") cell.dataset.enemyTier = String(def.cost);

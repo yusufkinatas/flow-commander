@@ -3,6 +3,7 @@ import { PACKS } from "../js/levels.js";
 import {
   advanceState,
   createPartyState,
+  heroPlanContext,
   parseLevel,
   simulatePath,
   solveLevel,
@@ -13,8 +14,9 @@ function eventTypes(events) {
   return events.map((event) => event.type);
 }
 
-function verifyTraceReplay(level, path, commander, label) {
+function verifyTraceReplay(level, path, commander, label, hunt = undefined) {
   const options = commander ? { commander } : {};
+  if (hunt) options.hunt = hunt;
   const trace = tracePath(level, path, options);
   const simulation = simulatePath(level, path, options);
 
@@ -38,6 +40,7 @@ function verifyTraceReplay(level, path, commander, label) {
       countMove: index > 0,
       previous: path[index - 2],
       from: path[index - 1],
+      hunt,
     });
     assert.equal(replayed.ok, true, `${label} step ${index} must replay successfully.`);
     assert.deepEqual(replayed.events, step.events, `${label} step ${index} must preserve newly emitted event order.`);
@@ -62,7 +65,24 @@ for (const pack of PACKS) {
     const solutions = solveLevel(level, 1);
     assert.ok(solutions.length > 0, `${pack.name} level ${level.id} needs a winning witness for flow verification.`);
     for (const [solutionIndex, solution] of solutions.entries()) {
-      if (level.mode === "convoy") {
+      if (level.mode === "hunt") {
+        // Each hunter is replayed against the world snapshot the hunters before it left.
+        const plan = heroPlanContext(level, {
+          order: solution.order,
+          assignment: solution.assignment,
+          paths: Object.fromEntries(solution.routes.map((route) => [route.heroId, route.path])),
+        });
+        for (const entry of plan.entries) {
+          verifyTraceReplay(
+            level,
+            entry.path,
+            entry.commander,
+            `${pack.name} level ${level.id} solution ${solutionIndex + 1}, ${entry.commander.name}`,
+            entry.options.hunt,
+          );
+          routeCount += 1;
+        }
+      } else if (level.mode === "convoy") {
         for (const route of solution.routes) {
           const commander = level.commanders.find((candidate) => candidate.id === route.commanderId);
           assert.ok(commander, `${pack.name} level ${level.id} returned an unknown commander.`);

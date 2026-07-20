@@ -45,7 +45,20 @@ export const TILE_DEFS = Object.freeze({
   "<": { type: "current", walkable: true, force: "L", label: "Westward marching arrow" },
   "^": { type: "current", walkable: true, force: "U", label: "Northward marching arrow" },
   v: { type: "current", walkable: true, force: "D", label: "Southward marching arrow" },
+
+  // The Hunters' Moon: camps the party starts from and the quarry it must clear.
+  // These stay walkable so the solver keeps generating candidates; whether a hero
+  // may actually stand here is decided by the hunt step logic, like gates today.
+  T: { type: "camp", walkable: true, label: "Hunters' camp" },
+  n: { type: "huntEnemy", walkable: true, enemy: "goblin", label: "Goblin" },
+  O: { type: "huntEnemy", walkable: true, enemy: "orc", label: "Orc · guards the tile it watches" },
+  D: { type: "huntEnemy", walkable: true, enemy: "dragon", label: "Dragon · breathes a lane of flame" },
 });
+
+// Hunt facing grids are authored with arrows so a level reads correctly by eye.
+const HUNT_FACING_CODES = Object.freeze({ "^": "U", ">": "R", v: "D", "<": "L" });
+
+const HUNT_HERO_IDS = Object.freeze(["warrior", "rogue", "mage"]);
 
 export const DIRECTIONS = Object.freeze([
   { code: "U", dr: -1, dc: 0, name: "north" },
@@ -77,6 +90,49 @@ function findExactlyOne(rows, tileCode, levelId) {
     throw new Error(`Level ${levelId} needs exactly one "${tileCode}" tile; found ${matches.length}.`);
   }
   return matches[0];
+}
+
+// The facing grid runs parallel to the map: an arrow on every enemy cell, a dot
+// everywhere else. Mismatches are authoring bugs, so they fail loudly.
+function parseHuntFacing(level, rows, height, width) {
+  if (!Array.isArray(level.facing) || level.facing.length !== height) {
+    throw new Error(`Hunt level ${level.id} needs a facing grid with ${height} rows.`);
+  }
+  return level.facing.map((row, r) => {
+    const cells = [...row];
+    if (cells.length !== width) {
+      throw new Error(`Hunt level ${level.id} facing row ${r} must be ${width} cells wide; found ${cells.length}.`);
+    }
+    return cells.map((cell, c) => {
+      const isEnemy = TILE_DEFS[rows[r][c]]?.type === "huntEnemy";
+      if (!isEnemy) {
+        if (cell !== ".") {
+          throw new Error(`Hunt level ${level.id} has a facing arrow at ${r},${c} with no enemy on it.`);
+        }
+        return null;
+      }
+      const facing = HUNT_FACING_CODES[cell];
+      if (!facing) {
+        throw new Error(`Hunt level ${level.id} needs a facing arrow (^ > v <) at ${r},${c}; found "${cell}".`);
+      }
+      return facing;
+    });
+  });
+}
+
+function parseHuntHeroes(level) {
+  const heroes = Array.isArray(level.heroes) ? level.heroes : [];
+  const ids = heroes.map((hero) => hero.id);
+  if (ids.length !== HUNT_HERO_IDS.length || HUNT_HERO_IDS.some((id) => !ids.includes(id))) {
+    throw new Error(`Hunt level ${level.id} needs exactly the heroes ${HUNT_HERO_IDS.join(", ")}.`);
+  }
+  return HUNT_HERO_IDS.map((id) => {
+    const hero = heroes.find((candidate) => candidate.id === id);
+    if (!Number.isInteger(hero.maxMoves) || hero.maxMoves < 0) {
+      throw new Error(`Hunt level ${level.id} needs a non-negative maxMoves for the ${id}.`);
+    }
+    return { ...hero, initial: { mana: hero.mana ?? 0 } };
+  });
 }
 
 export function parseLevel(level) {
@@ -122,6 +178,43 @@ export function parseLevel(level) {
     };
   }
 
+  if (level.mode === "hunt") {
+    const facingRows = parseHuntFacing(level, rows, height, width);
+    const camps = [];
+    const enemies = [];
+    rows.forEach((row, r) => {
+      row.forEach((tile, c) => {
+        const def = TILE_DEFS[tile];
+        if (def.type === "camp") camps.push({ r, c });
+        if (def.type === "huntEnemy") {
+          enemies.push({ id: keyOf({ r, c }), r, c, type: def.enemy, facing: facingRows[r][c] });
+        }
+      });
+    });
+
+    if (camps.length < 3) {
+      throw new Error(`Hunt level ${level.id} needs at least three camps ("T"); found ${camps.length}.`);
+    }
+    if (!enemies.length) {
+      throw new Error(`Hunt level ${level.id} needs at least one enemy to hunt.`);
+    }
+
+    const heroes = parseHuntHeroes(level);
+    return {
+      ...level,
+      rows,
+      width,
+      height,
+      camps,
+      enemies,
+      heroes,
+      start: camps[0],
+      goal: null,
+      targets,
+      beacons,
+    };
+  }
+
   const start = findExactlyOne(rows, "S", level.id);
   const goal = findExactlyOne(rows, "G", level.id);
   if (level.mode === "relief" && (!Number.isInteger(level.maxMoves) || level.maxMoves < 1)) {
@@ -141,6 +234,8 @@ export function createPartyState(initial = {}) {
     switches: new Set(initial.switches ?? []),
     deliveries: new Map(initial.deliveries ?? []),
     beacons: new Set(initial.beacons ?? []),
+    mana: initial.mana ?? 0,
+    kills: new Set(initial.kills ?? []),
     moves: initial.moves ?? 0,
     bonusMoves: initial.bonusMoves ?? 0,
     events: (initial.events ?? []).map(cloneEvent),
@@ -154,6 +249,7 @@ export function clonePartyState(state) {
 function cloneEvent(event) {
   const cloned = { ...event };
   if (event.position) cloned.position = { ...event.position };
+  if (event.from) cloned.from = { ...event.from };
   if (event.incoming) cloned.incoming = { ...event.incoming };
   if (event.outgoing) cloned.outgoing = { ...event.outgoing };
   if (event.targets) cloned.targets = event.targets.map((target) => ({ ...target }));
@@ -333,6 +429,157 @@ function markerDeparture(level, state, previous, from, to) {
   return { ok: true, state: next, events: [cloneEvent(event)], event: cloneEvent(event) };
 }
 
+// Living quarry, keyed by position: every enemy the level declared, minus the ones
+// earlier heroes felled (options.hunt.deadEnemies) and the ones this route felled.
+function huntAlive(level, options, state) {
+  const dead = new Set(options.hunt?.deadEnemies ?? []);
+  state?.kills?.forEach((id) => dead.add(id));
+  const alive = new Map();
+  for (const enemy of level.enemies) {
+    if (!dead.has(enemy.id)) alive.set(enemy.id, enemy);
+  }
+  return alive;
+}
+
+// Walls stop a ray; so does a living enemy. Dead enemies are transparent, and the
+// callback decides whether the blocking enemy matters (LOS kills it, flame stops on it).
+function huntRay(level, origin, direction, alive, onCell) {
+  let r = origin.r + direction.dr;
+  let c = origin.c + direction.dc;
+  while (true) {
+    const tile = TILE_DEFS[level.rows[r]?.[c]];
+    if (!tile?.walkable) return;
+    const key = keyOf({ r, c });
+    const enemy = alive.get(key);
+    if (onCell({ r, c }, key, enemy) === false) return;
+    if (enemy) return;
+    r += direction.dr;
+    c += direction.dc;
+  }
+}
+
+// Hazards projected by the living creatures, split by the source that projects them so
+// the board can draw a guarded square and a flame lane differently. `lethal` is the set
+// the rules actually enforce for this hero: flame burns everyone, an orc's stare spares
+// the warrior. Computed from the living set, so a lane goes cold the moment its owner dies.
+function huntHazardsFromAlive(level, alive, heroId) {
+  const guarded = new Set();
+  const flame = new Set();
+  for (const enemy of alive.values()) {
+    const direction = DIRECTION_BY_CODE.get(enemy.facing);
+    if (!direction) continue;
+    if (enemy.type === "orc") {
+      const front = { r: enemy.r + direction.dr, c: enemy.c + direction.dc };
+      if (TILE_DEFS[level.rows[front.r]?.[front.c]]?.walkable) guarded.add(keyOf(front));
+    } else if (enemy.type === "dragon") {
+      // A living creature soaks the flame, so its own tile stays safe to strike.
+      huntRay(level, enemy, direction, alive, (_position, key, blocker) => {
+        if (blocker) return false;
+        flame.add(key);
+      });
+    }
+  }
+  const lethal = new Set(flame);
+  if (heroId !== "warrior") guarded.forEach((key) => lethal.add(key));
+  return { guarded, flame, lethal };
+}
+
+function huntThreat(level, alive, heroId) {
+  return huntHazardsFromAlive(level, alive, heroId).lethal;
+}
+
+// The board draws hazards from this, so the overlay can never disagree with the rule.
+// `deadEnemies` must be the snapshot this hero actually walks into — the kills of the
+// hunters before it, not the whole party's eventual tally.
+export function huntHazards(level, deadEnemies, heroId = null) {
+  const alive = huntAlive(level, { hunt: { deadEnemies } }, null);
+  return huntHazardsFromAlive(level, alive, heroId);
+}
+
+function huntThreatReason(level, alive, heroId, key) {
+  for (const enemy of alive.values()) {
+    const direction = DIRECTION_BY_CODE.get(enemy.facing);
+    if (!direction) continue;
+    if (enemy.type === "orc" && heroId !== "warrior") {
+      const front = { r: enemy.r + direction.dr, c: enemy.c + direction.dc };
+      if (keyOf(front) === key) return "The orc is watching that square — only the warrior can walk into its guard.";
+    }
+    if (enemy.type === "dragon") {
+      let hit = false;
+      huntRay(level, enemy, direction, alive, (_position, cellKey, blocker) => {
+        if (blocker) return false;
+        if (cellKey === key) hit = true;
+      });
+      if (hit) return "That square lies in the dragon's flame.";
+    }
+  }
+  return "That square is not safe to stand on.";
+}
+
+// Melee resolution. The warrior strikes from any side, the rogue only from behind,
+// and the mage never at arm's length — the refusal text doubles as the player nudge.
+function huntEnemyEntry(level, state, position, options, enemy) {
+  const heroId = options.commander?.id ?? null;
+  if (heroId === "mage") {
+    return failedTransition("The mage cannot fight hand to hand — strike from a distance instead.");
+  }
+  if (heroId === "rogue") {
+    const incoming = routeVector(options.from, position);
+    const facing = DIRECTION_BY_CODE.get(enemy.facing);
+    const behind = isCardinalUnitVector(incoming) && facing
+      && incoming.dr === facing.dr && incoming.dc === facing.dc;
+    if (!behind) {
+      return failedTransition("The rogue only strikes from behind — approach from the way this enemy is looking.");
+    }
+  }
+  const next = clonePartyState(state);
+  next.kills.add(enemy.id);
+  const event = {
+    type: "huntKill",
+    method: heroId === "rogue" ? "backstab" : "melee",
+    enemyType: enemy.type,
+    enemyId: enemy.id,
+    position: { ...position },
+  };
+  next.events.push(event);
+  return { ok: true, state: next, events: [cloneEvent(event)], event: cloneEvent(event) };
+}
+
+// D4: on every arrival, scan the four cardinals once in U,R,D,L order while mana lasts.
+// Each ray kills at most one living enemy, so chained kills need a second arrival.
+function huntMageScan(level, state, position, options) {
+  let next = state;
+  const events = [];
+  for (const direction of DIRECTIONS) {
+    if (next.mana <= 0) break;
+    const alive = huntAlive(level, options, next);
+    let victim = null;
+    huntRay(level, position, direction, alive, (_cell, _key, enemy) => {
+      if (enemy) victim = enemy;
+    });
+    if (!victim) continue;
+    next = clonePartyState(next);
+    next.mana -= 1;
+    next.kills.add(victim.id);
+    const event = {
+      type: "bolt",
+      direction: direction.code,
+      enemyType: victim.type,
+      enemyId: victim.id,
+      from: { ...position },
+      position: { r: victim.r, c: victim.c },
+    };
+    next.events.push(event);
+    events.push(cloneEvent(event));
+  }
+  return { state: next, events };
+}
+
+export function allEnemiesDead(level, deadSet) {
+  const dead = deadSet instanceof Set ? deadSet : new Set(deadSet ?? []);
+  return (level.enemies ?? []).every((enemy) => dead.has(enemy.id));
+}
+
 function feedAdjacentTargets(level, state, position) {
   const fed = [];
   for (const target of level.targets) {
@@ -356,12 +603,34 @@ export function advanceState(level, state, position, options = {}) {
     return failedTransition("That standard belongs to another commander.");
   }
 
+  const isHunt = level.mode === "hunt";
+  const alive = isHunt ? huntAlive(level, options, state) : null;
+  const positionKey = keyOf(position);
+  if (isHunt) {
+    if (options.hunt?.occupied?.has(positionKey)) {
+      return failedTransition("Another hunter is holding that square.");
+    }
+    const threat = huntThreat(level, alive, commander?.id);
+    if (threat.has(positionKey)) {
+      return failedTransition(huntThreatReason(level, alive, commander?.id, positionKey));
+    }
+  }
+
   const departure = markerDeparture(level, state, options.previous, options.from, position);
   if (!departure.ok) return departure;
 
   const transition = enterTile(departure.state, tileCode, position);
   if (!transition.ok) return transition;
-  const next = transition.state;
+  let next = transition.state;
+  const huntEvents = [];
+
+  if (isHunt && tile.type === "huntEnemy" && alive.has(positionKey)) {
+    const strike = huntEnemyEntry(level, next, position, options, alive.get(positionKey));
+    if (!strike.ok) return strike;
+    next = strike.state;
+    huntEvents.push(...strike.events);
+  }
+
   if (options.countMove !== false) next.moves += tile.moveCost ?? 1;
 
   const fed = level.mode === "relief" ? feedAdjacentTargets(level, next, position) : [];
@@ -374,7 +643,13 @@ export function advanceState(level, state, position, options = {}) {
     return failedTransition(`${remaining} hungry monster${remaining === 1 ? " still needs" : "s still need"} a delivery before the banner.`);
   }
 
-  const events = [...departure.events, ...transition.events].map(cloneEvent);
+  if (isHunt && commander?.id === "mage") {
+    const scan = huntMageScan(level, next, position, options);
+    next = scan.state;
+    huntEvents.push(...scan.events);
+  }
+
+  const events = [...departure.events, ...transition.events, ...huntEvents].map(cloneEvent);
   if (fed.length) {
     const deliveryEvent = { type: "delivery", targets: fed, position: { ...position } };
     next.events.push(deliveryEvent);
@@ -404,7 +679,16 @@ export function tracePath(level, path, options = {}) {
   const initialState = clonePartyState(state);
   const steps = [];
   if (!path.length || !samePosition(path[0], start)) {
-    return { ok: false, initialState, state, steps, won: false, reason: "A route must begin on the active commander." };
+    return {
+      ok: false,
+      initialState,
+      state,
+      steps,
+      won: false,
+      reason: level.mode === "hunt"
+        ? "A route must begin at this hunter's camp."
+        : "A route must begin on the active commander.",
+    };
   }
 
   const visited = new Set();
@@ -423,6 +707,7 @@ export function tracePath(level, path, options = {}) {
       countMove: index > 0,
       previous,
       from,
+      hunt: options.hunt,
     });
     if (!transition.ok) {
       return {
@@ -451,13 +736,78 @@ export function tracePath(level, path, options = {}) {
 
   const finalTile = TILE_DEFS[level.rows[path.at(-1)?.r]?.[path.at(-1)?.c]];
   const pending = ["stride", "pivot"].includes(finalTile?.type);
-  const won = !pending && samePosition(path.at(-1), goal)
-    && (level.mode !== "relief" || deliveriesComplete(level, state));
+  // A hunt route never wins on its own — the pack-wide kill count decides that, so a
+  // legal route is simply a route that held together.
+  const won = level.mode === "hunt"
+    ? !pending
+    : !pending && samePosition(path.at(-1), goal)
+      && (level.mode !== "relief" || deliveriesComplete(level, state));
   return { ok: true, initialState, state: clonePartyState(state), steps, won, pending };
 }
 
 export function simulatePath(level, path, options = {}) {
   return tracePath(level, path, options);
+}
+
+// D1: a hero is just a convoy-style commander pinned to the camp the player picked,
+// which is what lets the whole existing budget/route plumbing carry hunt mode.
+export function huntCommander(level, heroId, camp) {
+  const hero = (level.heroes ?? []).find((candidate) => candidate.id === heroId);
+  if (!hero || !camp) return null;
+  return {
+    id: hero.id,
+    name: hero.name,
+    maxMoves: hero.maxMoves,
+    start: { ...camp },
+    goal: null,
+    initial: { ...(hero.initial ?? {}) },
+  };
+}
+
+function toLookup(value) {
+  if (value instanceof Map) return value;
+  return new Map(Object.entries(value ?? {}));
+}
+
+// D3: replays a whole party plan in order, handing each hero the snapshot of the world
+// the heroes before it left behind. One helper so the board, the solver and the tests
+// can never drift apart on what "the state route three sees" means.
+export function heroPlanContext(level, plan = {}) {
+  const assignment = toLookup(plan.assignment);
+  const paths = toLookup(plan.paths);
+  const order = plan.order ?? [...assignment.keys()];
+  const deadEnemies = new Set();
+  const resting = new Set();
+  const entries = [];
+
+  order.forEach((heroId, index) => {
+    const camp = assignment.get(heroId) ?? null;
+    const commander = huntCommander(level, heroId, camp);
+    const occupied = new Set(resting);
+    for (let later = index + 1; later < order.length; later += 1) {
+      const laterCamp = assignment.get(order[later]);
+      if (laterCamp) occupied.add(keyOf(laterCamp));
+    }
+    if (camp) occupied.delete(keyOf(camp));
+
+    const options = { commander, hunt: { deadEnemies: new Set(deadEnemies), occupied } };
+    const path = paths.get(heroId) ?? (camp ? [{ ...camp }] : []);
+    const trace = commander ? tracePath(level, path, options) : null;
+    if (trace?.ok) {
+      trace.state.kills.forEach((id) => deadEnemies.add(id));
+      resting.add(keyOf(path.at(-1)));
+    }
+    entries.push({ heroId, commander, camp, path, options, trace });
+  });
+
+  const campKeys = entries.filter((entry) => entry.camp).map((entry) => keyOf(entry.camp));
+  const distinctCamps = campKeys.length === order.length && new Set(campKeys).size === order.length;
+  const solved = distinctCamps
+    && entries.length === (level.heroes?.length ?? 0)
+    && entries.every((entry) => entry.trace?.ok)
+    && allEnemiesDead(level, deadEnemies);
+
+  return { entries, deadEnemies, distinctCamps, solved };
 }
 
 export function pathFromDirections(level, directions, commander = null) {
@@ -636,10 +986,160 @@ function analyzeConvoyLevel(level, options, metrics) {
   return { solutions, stoppedAtLimit: control.stop };
 }
 
+// Unlike a convoy route, a hunt route has no goal tile to terminate on: every node the
+// hero can reach is a legal place to stop, so the next hero plans from each of them.
+function enumerateHuntRoutes(level, commander, huntOptions, onRoute, control, metrics, settings = {}) {
+  const start = commander.start;
+  const visited = new Set([keyOf(start)]);
+  const path = [{ ...start }];
+  const initial = advanceState(level, createPartyState(commander.initial), start, {
+    commander,
+    countMove: false,
+    hunt: huntOptions,
+  });
+  if (!initial.ok) return;
+
+  function dfs(position, state) {
+    if (metrics.aborted || control.stop) return;
+    metrics.nodesExpanded += 1;
+    if (metrics.nodesExpanded > metrics.nodeLimit) {
+      metrics.aborted = true;
+      return;
+    }
+    metrics.maxDepth = Math.max(metrics.maxDepth, path.length - 1);
+
+    onRoute(path, state);
+    if (metrics.aborted || control.stop) return;
+    // Emit-and-stop: once the quarry is clear, walking further can only cost moves.
+    if (settings.stopWhenClear?.(state)) return;
+
+    const forced = forcedDirectionAt(level, position);
+    const possibleDirections = forced ? [DIRECTION_BY_CODE.get(forced)] : DIRECTIONS;
+    const candidates = [];
+    for (const direction of possibleDirections) {
+      const next = { r: position.r + direction.dr, c: position.c + direction.dc };
+      const nextKey = keyOf(next);
+      if (visited.has(nextKey) || !walkable(level, next)) continue;
+      const transition = advanceState(level, state, next, {
+        commander,
+        previous: path.at(-2),
+        from: position,
+        hunt: huntOptions,
+      });
+      if (!transition.ok) {
+        metrics.pruned += 1;
+        continue;
+      }
+      candidates.push({ next, nextKey, transition });
+    }
+    recordBranch(metrics, candidates.length, path.length - 1);
+
+    for (const candidate of candidates) {
+      visited.add(candidate.nextKey);
+      path.push(candidate.next);
+      dfs(candidate.next, candidate.transition.state);
+      path.pop();
+      visited.delete(candidate.nextKey);
+      if (metrics.aborted || control.stop) return;
+    }
+  }
+
+  dfs(start, initial.state);
+}
+
+function huntPermutations(ids) {
+  if (ids.length <= 1) return [[...ids]];
+  const result = [];
+  ids.forEach((id, index) => {
+    const rest = [...ids.slice(0, index), ...ids.slice(index + 1)];
+    for (const tail of huntPermutations(rest)) result.push([id, ...tail]);
+  });
+  return result;
+}
+
+function analyzeHuntLevel(level, options, metrics) {
+  const solutions = [];
+  const control = { stop: false };
+  const heroIds = level.heroes.map((hero) => hero.id);
+  const orders = options.forceOrder ? [[...options.forceOrder]] : huntPermutations(heroIds);
+  const routeStack = [];
+
+  function planHero(order, camps, index, deadEnemies, resting) {
+    if (metrics.aborted || control.stop) return;
+    if (index === order.length) {
+      if (!allEnemiesDead(level, deadEnemies)) {
+        metrics.deadEnds += 1;
+        return;
+      }
+      solutions.push({
+        order: [...order],
+        assignment: Object.fromEntries(order.map((heroId, slot) => [heroId, { ...camps[slot] }])),
+        routes: routeStack.map((route) => ({
+          heroId: route.heroId,
+          path: route.path.map((position) => ({ ...position })),
+          state: clonePartyState(route.state),
+        })),
+      });
+      if (solutions.length >= options.solutionLimit) control.stop = true;
+      return;
+    }
+
+    const heroId = order[index];
+    const camp = camps[index];
+    const commander = huntCommander(level, heroId, camp);
+    const occupied = new Set(resting);
+    for (let later = index + 1; later < order.length; later += 1) occupied.add(keyOf(camps[later]));
+    occupied.delete(keyOf(camp));
+    const huntOptions = { deadEnemies: new Set(deadEnemies), occupied };
+
+    enumerateHuntRoutes(level, commander, huntOptions, (path, state) => {
+      const nextDead = new Set(deadEnemies);
+      state.kills.forEach((id) => nextDead.add(id));
+      const nextResting = new Set(resting);
+      nextResting.add(keyOf(path.at(-1)));
+      routeStack.push({ heroId, path: [...path], state });
+      planHero(order, camps, index + 1, nextDead, nextResting);
+      routeStack.pop();
+    }, control, metrics, {
+      stopWhenClear: (state) => {
+        const combined = new Set(deadEnemies);
+        state.kills.forEach((id) => combined.add(id));
+        return allEnemiesDead(level, combined);
+      },
+    });
+  }
+
+  function chooseCamps(order, chosen, used) {
+    if (metrics.aborted || control.stop) return;
+    if (chosen.length === order.length) {
+      planHero(order, chosen, 0, new Set(), new Set());
+      return;
+    }
+    for (const camp of level.camps) {
+      const key = keyOf(camp);
+      if (used.has(key)) continue;
+      used.add(key);
+      chosen.push(camp);
+      chooseCamps(order, chosen, used);
+      chosen.pop();
+      used.delete(key);
+      if (metrics.aborted || control.stop) return;
+    }
+  }
+
+  for (const order of orders) {
+    if (metrics.aborted || control.stop) break;
+    chooseCamps(order, [], new Set());
+  }
+
+  return { solutions, stoppedAtLimit: control.stop };
+}
+
 function finalizeAnalysis(level, result, metrics) {
   const first = result.solutions[0] ?? null;
+  const multiRoute = level.mode === "convoy" || level.mode === "hunt";
   const paths = first
-    ? level.mode === "convoy" ? first.routes.map((route) => route.path) : [first.path]
+    ? multiRoute ? first.routes.map((route) => route.path) : [first.path]
     : [];
   const solutionDepth = paths.reduce((sum, path) => sum + Math.max(0, path.length - 1), 0);
   const solutionTurns = paths.reduce((sum, path) => sum + pathTurns(path), 0);
@@ -672,16 +1172,18 @@ export function analyzeLevel(level, options = {}) {
   const settings = {
     solutionLimit: options.solutionLimit ?? 1,
     nodeLimit: options.nodeLimit ?? 2_000_000,
+    forceOrder: options.forceOrder ?? null,
   };
   const metrics = createMetrics(settings.nodeLimit);
-  const result = level.mode === "convoy"
-    ? analyzeConvoyLevel(level, settings, metrics)
-    : analyzeSingleLevel(level, settings, metrics);
+  let result;
+  if (level.mode === "convoy") result = analyzeConvoyLevel(level, settings, metrics);
+  else if (level.mode === "hunt") result = analyzeHuntLevel(level, settings, metrics);
+  else result = analyzeSingleLevel(level, settings, metrics);
   return finalizeAnalysis(level, result, metrics);
 }
 
 export function solveLevel(level, limit = 1) {
   const analysis = analyzeLevel(level, { solutionLimit: limit });
-  if (level.mode === "convoy") return analysis.solutions;
+  if (level.mode === "convoy" || level.mode === "hunt") return analysis.solutions;
   return analysis.solutions.map((solution) => solution.path);
 }

@@ -14,6 +14,7 @@
   --violet: #a997ff;
   --water: #5da9d6;
   --teal: #38d6c5;
+  --ember: #ff9b4a;
   --pack-accent: var(--gold);
   --cell-size: 56px;
   font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", "Liberation Mono", monospace;
@@ -46,6 +47,7 @@ body[data-pack="violet"] { --pack-accent: var(--violet); }
 body[data-pack="coral"] { --pack-accent: var(--coral); }
 body[data-pack="water"] { --pack-accent: var(--water); }
 body[data-pack="teal"] { --pack-accent: var(--teal); }
+body[data-pack="ember"] { --pack-accent: var(--ember); }
 
 body[data-pack="mint"] .sky-glow--one { opacity: 0.14; }
 body[data-pack="violet"] .sky-glow--two { opacity: 0.15; }
@@ -53,6 +55,8 @@ body[data-pack="coral"] .sky-glow--one { background: var(--coral); opacity: 0.13
 body[data-pack="water"] .sky-glow--two { background: var(--water); opacity: 0.16; }
 body[data-pack="teal"] .sky-glow--one { background: var(--teal); opacity: 0.16; }
 body[data-pack="teal"] .sky-glow--two { background: #3d8ca9; opacity: 0.12; }
+body[data-pack="ember"] .sky-glow--one { background: var(--ember); opacity: 0.15; }
+body[data-pack="ember"] .sky-glow--two { background: #6b3f7a; opacity: 0.14; }
 
 body::before {
   position: fixed;
@@ -381,12 +385,14 @@ a:focus-visible {
 .pack-tab--coral.is-current { border-color: rgba(255, 118, 111, 0.58); background: rgba(255, 118, 111, 0.12); }
 .pack-tab--water.is-current { border-color: rgba(93, 169, 214, 0.6); background: rgba(93, 169, 214, 0.12); }
 .pack-tab--teal.is-current { border-color: rgba(56, 214, 197, 0.62); background: rgba(56, 214, 197, 0.12); }
+.pack-tab--ember.is-current { border-color: rgba(255, 155, 74, 0.62); background: rgba(255, 155, 74, 0.12); }
 .pack-tab--gold.is-current > span { background: var(--gold); }
 .pack-tab--mint.is-current > span { background: var(--mint); }
 .pack-tab--violet.is-current > span { background: var(--violet); }
 .pack-tab--coral.is-current > span { background: var(--coral); }
 .pack-tab--water.is-current > span { background: var(--water); }
 .pack-tab--teal.is-current > span { background: var(--teal); }
+.pack-tab--ember.is-current > span { background: var(--ember); }
 .pack-tab.is-complete::after {
   position: absolute;
   top: 3px;
@@ -1460,6 +1466,10 @@ a:focus-visible {
 .route-line--water,
 .route-line--warden { stroke: var(--water); filter: drop-shadow(0 0 5px rgba(93, 169, 214, 0.55)); }
 .route-line--teal { stroke: var(--teal); filter: drop-shadow(0 0 6px rgba(56, 214, 197, 0.62)); }
+.route-line--ember { stroke: var(--ember); filter: drop-shadow(0 0 6px rgba(255, 155, 74, 0.62)); }
+.route-line--warrior { stroke: #ff6f5c; filter: drop-shadow(0 0 6px rgba(255, 111, 92, 0.62)); }
+.route-line--rogue { stroke: #7fdc86; filter: drop-shadow(0 0 6px rgba(127, 220, 134, 0.6)); }
+.route-line--mage { stroke: #b39aff; filter: drop-shadow(0 0 6px rgba(179, 154, 255, 0.62)); }
 
 .route-head {
   fill: #fff3bf;
@@ -1477,6 +1487,10 @@ a:focus-visible {
 .route-head--water,
 .route-head--warden { fill: #def5ff; stroke: #39789d; }
 .route-head--teal { fill: #d9fffa; stroke: #16877d; }
+.route-head--ember { fill: #ffe6cb; stroke: #b4571c; }
+.route-head--warrior { fill: #ffe0d9; stroke: #b23b31; }
+.route-head--rogue { fill: #ddffe0; stroke: #2f8a45; }
+.route-head--mage { fill: #ece5ff; stroke: #6a56bd; }
 
 .route-head[hidden] {
   display: none;
@@ -1789,6 +1803,285 @@ a:focus-visible {
 .cell.is-event-formation-open .formation-gate { animation: formationOpen 360ms steps(5, end) forwards; transform-origin: bottom; }
 .cell.is-event-healing { animation: healingCell 420ms steps(6, end); }
 .cell.is-event-complete { animation: completionCell 440ms steps(8, end); }
+
+/* The Hunters' Moon: camps, quarry, and the lanes a living enemy denies. These sit
+   late in the sheet so a flame or a threat tint wins over the terrain it covers. */
+.cell--camp {
+  background-color: #6f5334;
+  background-image:
+    radial-gradient(circle at 50% 44%, rgba(255, 155, 74, 0.3), transparent 64%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0000.png");
+  box-shadow: inset 0 0 0 2px rgba(255, 200, 145, 0.24);
+}
+
+.entity--camp {
+  width: 58%;
+  bottom: 18%;
+  animation: none;
+}
+
+/* A posted hunter who has drawn nothing yet: the camp reads as unfinished business, but
+   quietly, so it never competes with the selected hunter's tent. */
+.cell--camp.has-draft-commander {
+  box-shadow: inset 0 0 0 2px rgba(255, 200, 145, 0.5);
+}
+
+.cell--camp.has-draft-commander .hunt-marker {
+  border-bottom-color: #ffd7b0;
+  color: #ffe7cd;
+}
+
+/* "Begin on X's camp, the glowing tent." The tent has to actually glow. Listed after the
+   draft state so the selected camp always wins when a hunter is both selected and undrawn. */
+.cell--camp.is-active-commander {
+  background-color: #8a6740;
+  box-shadow: inset 0 0 0 3px var(--ember), 0 0 10px rgba(255, 155, 74, 0.6);
+}
+
+.cell--camp.is-active-commander .entity--camp {
+  animation: huntCampGlow 1.1s steps(2, end) infinite;
+}
+
+.cell--camp.is-active-commander .hunt-marker {
+  border-bottom-color: var(--ember);
+  color: #fff6e6;
+  text-shadow: 0 0 6px rgba(255, 155, 74, 0.9), 0 2px 0 #7a3f14;
+}
+
+.hunt-marker {
+  position: absolute;
+  z-index: 3;
+  inset: 14% 20% 24%;
+  display: grid;
+  place-items: center;
+  border-bottom: clamp(2px, 7cqi, 4px) solid #ffe7cd;
+  color: #fff1de;
+  font-size: clamp(11px, 40cqi, 24px);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 0 4px rgba(24, 16, 12, 0.85), 0 2px 0 #7a3f14;
+  pointer-events: none;
+}
+
+.cell--hunt-enemy {
+  background-color: #4a3f52;
+  background-image:
+    radial-gradient(circle at 50% 52%, rgba(24, 14, 26, 0.42), transparent 66%),
+    url("./assets/vendor/kenney-tiny-battle/Tiles/tile_0001.png");
+  box-shadow: inset 0 0 0 2px rgba(255, 155, 74, 0.22);
+}
+
+.entity--hunt-enemy {
+  width: 70%;
+}
+
+.hunt-facing {
+  position: absolute;
+  z-index: 5;
+  top: 5%;
+  left: 50%;
+  display: grid;
+  width: clamp(9px, 30cqi, 18px);
+  height: clamp(9px, 30cqi, 18px);
+  place-items: center;
+  border: 1px solid rgba(24, 16, 12, 0.7);
+  border-radius: 50%;
+  color: #2a1a10;
+  background: #ffe0b6;
+  box-shadow: 0 1px 0 rgba(24, 16, 12, 0.55);
+  font-size: clamp(7px, 22cqi, 13px);
+  font-weight: 900;
+  line-height: 1;
+  transform: translateX(-50%) rotate(var(--facing-turn, 0turn));
+  pointer-events: none;
+}
+
+.cell--threat {
+  isolation: isolate;
+}
+
+.cell--threat::before {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  content: "";
+  background: repeating-linear-gradient(135deg, rgba(255, 118, 111, 0.26) 0 4px, transparent 4px 9px);
+  box-shadow: inset 0 0 0 2px rgba(255, 118, 111, 0.42);
+  pointer-events: none;
+}
+
+.cell--flame {
+  isolation: isolate;
+}
+
+.cell--flame::before {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(0deg, rgba(255, 96, 79, 0.4), rgba(255, 201, 92, 0.22)),
+    repeating-linear-gradient(90deg, rgba(255, 155, 74, 0.3) 0 5px, transparent 5px 10px);
+  box-shadow: inset 0 0 0 2px rgba(255, 155, 74, 0.62), inset 0 0 14px rgba(255, 96, 79, 0.45);
+  animation: huntFlame 900ms steps(3, end) infinite;
+  pointer-events: none;
+}
+
+.cell.is-planned-hunt-kill .entity--hunt-enemy {
+  opacity: 0.52;
+  filter: grayscale(0.6) brightness(0.82);
+  animation: none;
+}
+
+.cell.is-planned-hunt-kill .hunt-facing {
+  opacity: 0.45;
+}
+
+.cell.is-planned-hunt-kill .tile-label::before {
+  content: "☠ ";
+  color: #ffd7b0;
+}
+
+.cell.is-planned-hunt-kill::after {
+  box-shadow: inset 0 0 0 2px rgba(255, 155, 74, 0.66);
+}
+
+.cell.is-event-hunt-kill .entity--hunt-enemy {
+  animation: huntFell 420ms steps(6, end) forwards;
+}
+
+.cell.is-event-hunt-kill .hunt-facing {
+  animation: huntFacingSnuff 320ms steps(4, end) forwards;
+}
+
+/* Once the quarry is down it stays down for the rest of the replay. The facing arrow is a
+   <span>, not an .entity, so the resolved-entity rule never reached it — and a bolt victim
+   is never walked over at all, so it needs its own consumed state rather than a route tile. */
+.cell.is-felled-quarry .entity--hunt-enemy {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-10px) scale(0.55);
+  filter: brightness(1.8) drop-shadow(0 0 8px var(--ember));
+}
+
+.cell.is-felled-quarry .hunt-facing {
+  opacity: 0;
+  transform: translateX(-50%) rotate(var(--facing-turn, 0turn)) scale(0.4);
+}
+
+.cell.is-felled-quarry .tile-label::before {
+  content: "☠ ";
+  color: #ffd7b0;
+}
+
+.hunt-order-badge {
+  position: absolute;
+  z-index: 5;
+  top: 5%;
+  left: 6%;
+  display: grid;
+  min-width: clamp(8px, 26cqi, 18px);
+  height: clamp(8px, 26cqi, 18px);
+  place-items: center;
+  padding: 0 2px;
+  border: 1px solid rgba(24, 16, 12, 0.72);
+  border-radius: 4px;
+  color: #2a1a10;
+  background: var(--ember);
+  box-shadow: 0 2px 0 #8f4a17;
+  font-size: clamp(5px, 16cqi, 11px);
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.commander-chip .hunt-order-badge,
+.route-meter .hunt-order-badge {
+  position: static;
+  min-width: 13px;
+  height: 13px;
+  font-size: 8px;
+}
+
+/* Ash's bolts. A spent pip has to read as spent at a glance, so it loses its fill and its
+   glow and keeps only the empty socket — colour alone would not carry it. */
+.hunt-mana-pips {
+  display: flex;
+  margin-top: 3px;
+  gap: 2px;
+}
+
+.hunt-mana-pips i {
+  display: grid;
+  width: 9px;
+  height: 9px;
+  place-items: center;
+  border: 1px solid rgba(179, 154, 255, 0.75);
+  border-radius: 50%;
+  color: #12101c;
+  background: #b39aff;
+  box-shadow: 0 0 4px rgba(179, 154, 255, 0.6);
+  font-size: 6px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.hunt-mana-pips i.is-spent {
+  border-style: dashed;
+  border-color: rgba(179, 154, 255, 0.4);
+  color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.commander-chip--warrior.is-active { border-color: rgba(255, 111, 92, 0.52); box-shadow: inset 3px 0 #ff6f5c; }
+.commander-chip--rogue.is-active { border-color: rgba(127, 220, 134, 0.52); box-shadow: inset 3px 0 #7fdc86; }
+.commander-chip--mage.is-active { border-color: rgba(179, 154, 255, 0.52); box-shadow: inset 3px 0 #b39aff; }
+
+/* The Hunters' Moon legend. One swatch per overlay the board actually paints, and each one
+   echoes that overlay's own treatment — the guarded tint is hatched on the board, so it is
+   hatched here too rather than reading as a flat coral block. */
+.legend-swatch--camp { border: 1px solid #ffe7cd; background: var(--ember); }
+.legend-swatch--hunt-enemy { border: 1px solid #ffd7b0; background: #4a3f52; }
+.legend-swatch--threat {
+  border: 1px solid rgba(255, 118, 111, 0.75);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 118, 111, 0.95) 0 2px, transparent 2px 5px),
+    #4a3f52;
+}
+.legend-swatch--flame { background: #ff604f; box-shadow: 0 0 5px rgba(255, 96, 79, 0.8); }
+
+.execution-fx--hunt-strike { --fx-color: var(--ember); }
+
+.execution-fx--hunt-strike::before {
+  inset: 14%;
+  border: 4px solid #ffe0b6;
+  border-radius: 48% 52% 45% 55%;
+  box-shadow: 0 0 14px rgba(255, 155, 74, 0.9);
+  animation: huntStrike 340ms steps(6, end) forwards;
+}
+
+.execution-fx--hunt-strike::after {
+  inset: 26%;
+  content: "✶";
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: #fff3d8;
+  font-size: clamp(11px, 40%, 24px);
+  animation: huntStrike 340ms steps(5, end) forwards;
+  animation-direction: reverse;
+}
+
+.execution-fx--hunt-bolt {
+  --fx-dx: 0px;
+  --fx-dy: 0px;
+  width: clamp(8px, 26%, 18px);
+  height: clamp(8px, 26%, 18px);
+  border-radius: 50%;
+  background: #fff1de;
+  box-shadow: 0 0 5px #fff1de, 0 0 12px var(--ember), -9px 0 0 -3px #ff604f;
+  animation: huntBoltFlight 300ms linear forwards;
+}
 
 .confetti-layer {
   position: absolute;
@@ -3239,6 +3532,40 @@ dialog::backdrop {
   100% { transform: scale(1.25); opacity: 0; }
 }
 
+@keyframes huntFlame {
+  0%, 100% { opacity: 0.82; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.25) saturate(1.15); }
+}
+
+@keyframes huntCampGlow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.35) drop-shadow(0 0 5px var(--ember)); }
+}
+
+@keyframes huntFell {
+  0% { transform: translateX(-50%) rotate(0) scale(1); opacity: 1; }
+  40% { transform: translateX(-56%) rotate(-16deg) scale(1.1, 0.88); filter: brightness(1.75) drop-shadow(0 0 9px var(--ember)); }
+  100% { transform: translateX(-64%) translateY(36%) rotate(-42deg) scale(0.5); opacity: 0; }
+}
+
+@keyframes huntFacingSnuff {
+  0% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) rotate(var(--facing-turn, 0turn)) scale(0.4); }
+}
+
+@keyframes huntStrike {
+  0% { transform: scale(0.32) rotate(-12deg); opacity: 0; }
+  35% { opacity: 1; }
+  100% { transform: scale(1.5) rotate(16deg); opacity: 0; }
+}
+
+@keyframes huntBoltFlight {
+  0% { transform: translate(-50%, -50%) translate(0, 0) scale(0.6); opacity: 0; }
+  16% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) translate(var(--fx-dx), var(--fx-dy)) scale(1.3); opacity: 0; }
+}
+
 @keyframes healingWave {
   0% { transform: scale(0.25); opacity: 0.9; }
   100% { transform: scale(1.65); opacity: 0; }
@@ -3700,6 +4027,17 @@ dialog::backdrop {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+
+  .cell--flame::before {
+    animation: none !important;
+    opacity: 1;
+  }
+
+  .cell.is-event-hunt-kill .entity--hunt-enemy {
+    animation: none !important;
+    opacity: 0.18;
+    filter: grayscale(1);
   }
 }
 

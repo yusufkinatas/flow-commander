@@ -151,7 +151,7 @@
           <div class="gameplay-footer-hud">
             <div class="mission-tools">
               <button class="tool-button tool-button--workshop" id="backToDesignerButton" type="button" hidden>
-                <span aria-hidden="true">▦</span> BACK TO DESIGNER
+                <span aria-hidden="true">▦</span> BACK TO DESIGNER <kbd>P</kbd>
               </button>
               <button class="tool-button" id="undoButton" type="button" disabled>
                 <span aria-hidden="true">↶</span> UNDO
@@ -270,6 +270,7 @@
               aria-label="Level painting grid"
               aria-describedby="designerHotbarHelp designerStatus"
             ></div>
+            <svg class="route-layer" id="designerRouteLayer" aria-hidden="true" hidden></svg>
           </div>
         </div>
 
@@ -316,6 +317,7 @@
         </div>
 
         <section class="editor-check">
+          <p class="designer-readiness" id="designerReadiness" aria-live="polite">Playable · one commander, one banner.</p>
           <p class="designer-status" id="designerStatus" role="status" aria-live="polite">Paint a start, a banner, and a route to begin.</p>
           <div class="designer-primary-actions">
             <button class="secondary-button" id="analyzeDesignButton" type="button">

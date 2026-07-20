@@ -2995,6 +2995,37 @@ dialog::backdrop {
   line-height: 1.45;
 }
 
+/* A standing verdict on whether the game can start this map at all, distinct from
+   the status line below it, which reports what just happened. */
+.designer-readiness {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(126, 226, 178, 0.28);
+  border-radius: 6px;
+  color: var(--mint);
+  background: rgba(126, 226, 178, 0.08);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.designer-readiness::before {
+  flex: 0 0 auto;
+  content: "✓";
+}
+
+.designer-readiness.is-blocked {
+  border-color: rgba(255, 170, 165, 0.34);
+  color: #ffaaa5;
+  background: rgba(255, 118, 111, 0.09);
+}
+
+.designer-readiness.is-blocked::before {
+  content: "!";
+}
+
 .designer-status.is-success { color: var(--mint); }
 .designer-status.is-error { color: #ffaaa5; }
 .designer-status.is-working { color: var(--gold); }
@@ -5678,6 +5709,17 @@ body.hud-help-open .help-panel {
   border-top: 1px solid rgba(255, 201, 92, 0.34);
   border-left: 1px solid rgba(255, 201, 92, 0.34);
 }
+
+/* The solved route rides above the painted cells, and its stroke does not scale with
+   the viewBox, so a workshop cell smaller than a board cell needs a thinner line. */
+.editor-frame .route-layer {
+  z-index: 5;
+}
+
+.editor-frame .route-shadow { stroke-width: 9px; }
+.editor-frame .route-line { stroke-width: 5px; }
+.editor-frame--dense .route-shadow { stroke-width: 6px; }
+.editor-frame--dense .route-line { stroke-width: 3px; }
 
 /* The footprint a wide brush is about to commit to. */
 .designer-grid > .designer-cell.is-brush-preview {
